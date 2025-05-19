@@ -47,7 +47,8 @@ pacman::p_load(
   rsample,#para remuestreos y dividir la muestra
   rpart, 
   rpart.plot, 
-  ipred
+  ipred,
+  gbm
   )
 
 
@@ -150,29 +151,30 @@ RMSE(pred_rmse, test_split$price)
 ## Envío Kaggle Elastic Net ## 
 # Poner el modelo que en efecto funcione
 
-ctrl_acc_f <- trainControl(method = "cv",
+ctrl_rmse_f <- trainControl(method = "cv",
                            number = 5,
                            savePredictions = T)
 
-model_acc_f <- train(price ~ lat + lon + bedrooms + year + month,
-                     data = train, method = "glmnet",
+model_rmse_f <- train(price ~ lat + lon + bedrooms + year + month,
+                     data = train_basica, method = "glmnet",
                      metric = "RMSE", trControl = ctrl_acc, 
                      tuneGrid = grid)
 
 
 # Hacemos la predicción
 
-predictSample_en <- test %>%
-  mutate(price= predict(model_acc_f, newdata = test)) %>%
+predictSample_en <- test_basica %>%
+  mutate(price= predict(model_rmse_f, newdata = test_basica)) %>%
   dplyr::select(property_id, price)
 
 head(predictSample_en)
 
+# Generando el archivo que lo saque
 
 lambda_str <- gsub(
   "\\.", "_", 
-  as.character(round(model_acc_f$bestTune$lambda, 4)))
-alpha_str <- gsub("\\.", "_", as.character(model_acc_f$bestTune$alpha))
+  as.character(round(model_rsme_f$bestTune$lambda, 4)))
+alpha_str <- gsub("\\.", "_", as.character(model_rmse_f$bestTune$alpha))
 
 name<- paste0(
   "EN_VF_lambda_", lambda_str,
@@ -225,7 +227,9 @@ cv_tree_1 <- train(price ~ lat + lon + bedrooms + year + month,
 # Predicción para Kaggle
 predictSample_CART <- test_split %>% 
   mutate(price = predict(cv_tree_1, newdata = test_split)) %>%
-  dplyr::select(property.id, price)
+  dplyr::select(property_id, price)
+
+head(predictSample_CART)
 
 name <- "CART_alpha0.csv"
 write.csv(predictSample_CART, name, row.names = FALSE)
@@ -249,52 +253,8 @@ ctrl<- trainControl(method = "cv",
                     verbose=FALSE,
                     savePredictions = TRUE)
 
-### -----Modelo Adaboost -----------
-
-#Formando la grilla de valores a usar en el proceso de entrenamiento
-
-adagrid <- expand.grid(
-  mfinal = c(50, 100), 
-  maxdepth = c(1, 2), 
-  coeflearn = c('Breiman')
-)
-
-#Creando el modelo
-
-set.seed(10101)
-
-adaboost_tree <- train(price~lat + lon + bedrooms + year + month,
-                       data = train_split, 
-                       method = "AdaBoost.M1",
-                       trControl = ctrl,
-                       metric = "RMSE",
-                       tuneGrid = adagrid
-)
-
-#ahora predecimos el funcionamiento del modelo
-predictSample_adaboost <- test_split   %>% 
-  mutate(price = predict(adaboost_tree, newdata = test_split)) %>%
-  dplyr::select(property.id, price)
-
-head(predictSample_adaboost)
-
-# Formato específico Kaggle
-lambda_str <- gsub("\\.", "_", as.character(round(adaboost_tree$bestTune$mfinal, 4)))
-alpha_str <- gsub("\\.", "_", as.character(adaboost_tree$bestTune$maxdepth))
-al_str <- gsub("\\.", "_", as.character(adaboost_tree$bestTune$coeflearn))
-
-name<- paste0(
-  "Adaboost_", lambda_str,
-  "_mfinal_" , alpha_str, 
-  "_coeflearn_", al_str,
-  ".csv")
-
-write.csv(predictSample_adaboost, name, row.names = FALSE)
-
 
 ### Modelo Gradient Boosting ----
-
-p_load(gbm)
 
 grid_gbm <- expand.grid(n.trees = c(50, 100, 150),
                         interaction.depth = c(1, 2),
@@ -313,7 +273,7 @@ gbm_tree <- train(price~lat + lon + bedrooms + year + month,
 
 predictSample_gbm <- test_split %>%
   mutate(price = predict(gbm_tree, newdata = test_split)) %>%
-  dplyr::select(property.id, price)
+  dplyr::select(property_id, price)
 
 head(predictSample_gbm)
 
@@ -343,7 +303,7 @@ Xgboost_tree <- train(price ~ lat + lon + bedrooms + year + month,
 
 predictSample_Xgboost <- test_split %>%
   mutate(Price = predict(Xgboost_tree, newdata = test_split)) %>%
-  dplyr::select(property.id, Price)
+  dplyr::select(property_id, price)
 
 head(predictSample_Xgboost)
 
