@@ -48,3 +48,10 @@ pacman::p_load(
 
 
 # ---------- BASE DE DATOS ---------- # ----
+train <- read_csv(
+  "https://raw.githubusercontent.com/samelomo99/PS3_SM_MB_DL/refs/heads/main/stores/train.csv"
+)
+
+test <- read_csv(
+  "https://raw.githubusercontent.com/samelomo99/PS3_SM_MB_DL/refs/heads/main/stores/test.csv"
+) # no hay Bogotá en dominio de test_completo_hogares
