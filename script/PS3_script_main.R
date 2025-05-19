@@ -4,7 +4,7 @@
 #-------------------------------------------------------------------#
 
 
-# ---------- LIBRERÍAS ---------- # ----
+# ---------- LIBRERÍAS -------------
 
 if (!require("pacman")) install.packages("pacman")
 library(pacman)
@@ -43,11 +43,17 @@ pacman::p_load(
   tidyverse, # tidy-data
   caret ,  # for model training and tunning
   Metrics, ## Evaluation Metrics for ML
-  adabag
-)
+  adabag,
+  rsample,#para remuestreos y dividir la muestra
+  rpart, 
+  rpart.plot, 
+  ipred
+  )
 
 
-# ---------- BASE DE DATOS ---------- # ----
+
+
+# ---------- BASE DE DATOS --------------
 train_basica <- read_csv(
   "https://raw.githubusercontent.com/samelomo99/PS3_SM_MB_DL/refs/heads/main/stores/train.csv"
 ) #Esta es la base de train que esta en kaggle, en base a esta se deben crear las nuevas variables 
@@ -60,18 +66,18 @@ test_basica <- read_csv(
 #Aca van las modificaciones a la base de datos original para lograr que el modelo funcione.
 
 # --- Creacion de las particiones de datos para probar -------- #
-# Creamos índices para dividir
-index <- createDataPartition(train$price, p = 0.7, list = FALSE)
+# Creamos índices para dividir (Recuerde cambiarlos una vez este la base de datos final)
+index <- createDataPartition(train_basica$price, p = 0.7, list = FALSE)
 
-train_split <- train[index, ]  #Con esta se hace la estimación
-test_split  <- train[-index, ] #Con esta se hace la prueba del F1
-
-
+train_split <- train_basica[index, ]  #Con esta se hace la estimación
+test_split  <- train_basica[-index, ] #Con esta se hace la prueba del F1
 
 
-#----- MODELOS ----------------------# --------
 
-# ---------- OLS ---------- # ----
+
+#----- MODELOS --------------------
+
+## ---------- OLS ----------------------
 # Montamos la validación cruzada
 set.seed(10101)
 ctrl <- trainControl(method = "cv",
@@ -97,7 +103,7 @@ head(predictSampleOLS)
 # Guardamos el resultado en formato CSV para Kaggle
 write.csv(predictSampleOLS, "OLS.csv", row.names = FALSE)
 
-# ---------- ELASTIC NET ---------- # ----
+## ---------- ELASTIC NET  ----
 set.seed(1410)
 
 
@@ -107,154 +113,58 @@ grid <- expand.grid(
   lambda = 10^seq(10, -2, length = 10)
 )
 
-# Función F1 personalizada
-f1_summary <- function(data, lev = NULL, model = NULL) {
-  precision <- posPredValue(data$pred, data$obs, positive = lev[1])
-  recall <- sensitivity(data$pred, data$obs, positive = lev[1])
-  f1 <- ifelse((precision + recall) == 0, 0, 2 * precision * recall / (precision + recall))
-  out <- c(F1 = f1)
-  return(out)
-}
 
-# Modelo con Accuracy ----
+### Modelo con Accuracy ----
 ctrl_acc <- trainControl(method = "cv",
                          number = 5,
-                         classProbs = TRUE,
                          savePredictions = T)
 
-model_acc <- train(Pobre ~ Nper + edad_jefe + nocupados + nmujeres + nmenores + 
-                     H_Head_mujer +  H_Head_Educ_level,
+model_acc <- train(price ~ lat + lon + bedrooms + year + month,
                    data = train_split, method = "glmnet",
-                   metric = "Accuracy", trControl = ctrl_acc, 
+                   metric = "RMSE", trControl = ctrl_acc, 
                    tuneGrid = grid)
 
-# Modelo con ROC ----
-ctrl_roc <- trainControl(method = "cv", number = 5,
-                         summaryFunction = twoClassSummary,
-                         classProbs = TRUE,
-                         savePredictions = T)
+### Modelo con RMSE ----
+ctrl_rmse <- trainControl(method = "cv", number = 5,
+                          savePredictions = T)
 
-model_roc <- train(Pobre ~ Nper + edad_jefe + nocupados + nmujeres + nmenores + 
-                     H_Head_mujer +  H_Head_Educ_level,
-                   data = train_split, method = "glmnet",
-                   metric = "ROC", trControl = ctrl_roc, 
-                   tuneGrid = grid)
+model_rmse <- train(price ~ lat + lon + bedrooms + year + month,
+                    data = train_split, method = "glmnet",
+                    metric = "RMSE", trControl = ctrl_rmse, 
+                    tuneGrid = grid)
 
 
-# Probamos el mejor modelo # ----
-# Obtener las probabilidades de cada modelo
-probs_acc <- predict(model_acc, newdata = test_split, type = "prob")
-probs_roc  <- predict(model_roc,  newdata = test_split, type = "prob")
+# Probamos el mejor modelo
+# Obtener las predicciones de cada modelo
+pred_acc <- predict(model_acc, newdata = test_split)
+pred_rmse  <- predict(model_rmse,  newdata = test_split)
 
-
-# Aplicar el umbral personalizado: probabilidad de clase "Si" > 0.2
-pred_acc_02 <- ifelse(probs_acc$Si < 0.2, "Si", "No")
-pred_roc_01  <- ifelse(probs_roc$Si  < 0.3, "Si", "No")
-pred_roc_02 <- ifelse(probs_roc$Si < 0.1, "Si", "No")
-
-# Convertir a factor con los mismos niveles que test_split$Pobre
-pred_acc_02 <- factor(pred_acc_02, levels = levels(test_split$Pobre))
-pred_roc_01  <- factor(pred_f1_02,  levels = levels(test_split$Pobre))
-pred_roc_02 <- factor(pred_roc_02, levels = levels(test_split$Pobre))
+head(pred_acc)
+head(pred_rmse)
 
 # Evaluar cada uno
-confusionMatrix(pred_acc_02, test_split$Pobre)
-confusionMatrix(pred_f1_02,  test_split$Pobre)
-confusionMatrix(pred_roc_02, test_split$Pobre)
+RMSE(pred_acc, test_split$price)
+RMSE(pred_rmse, test_split$price)
 
-# Ver f1
-f1_ <- function(pred, ref) {
-  cm <- confusionMatrix(pred, ref, positive = "Si")
-  data.frame(
-    Accuracy = cm$overall["Accuracy"],
-    Kappa = cm$overall["Kappa"],
-    Sensibilidad = cm$byClass["Sensitivity"],
-    Especificidad = cm$byClass["Specificity"],
-    F1 = cm$byClass["F1"]
-  )
-}
 
-f1_(pred_acc_02, test_split$Pobre)
-f1_(pred_roc_01, test_split$Pobre)
-f1_(pred_roc_02, test_split$Pobre)
-
-# Vemos gráficamente cual puede ser el mejor umbral
-
-library(ggplot2)
-library(caret)
-library(dplyr)
-
-# Vector real
-y_real <- test_split$Pobre
-
-# Probabilidades del modelo (usa prob_f1 o prob_roc si preferís)
-probs <- probs_acc[, "Si"]
-
-# Crear función para calcular métricas por umbral
-metricas_umbral <- function(threshold, y_real, probs) {
-  pred <- factor(ifelse(probs > threshold, "Si", "No"), levels = c("No", "Si"))
-  cm <- confusionMatrix(pred, y_real, positive = "Si")
-  
-  data.frame(
-    threshold = threshold,
-    Accuracy = cm$overall["Accuracy"],
-    Kappa = cm$overall["Kappa"],
-    Sensibilidad = cm$byClass["Sensitivity"],
-    Especificidad = cm$byClass["Specificity"],
-    F1 = cm$byClass["F1"]
-  )
-}
-
-# Calcular para umbrales entre 0 y 1
-umbrales <- seq(0, 1, by = 0.05)
-resultados <- bind_rows(lapply(umbrales, metricas_umbral, y_real = y_real, probs = probs))
-
-# Reorganizar para ggplot
-resultados_largos <- resultados %>%
-  pivot_longer(cols = -threshold, names_to = "Metrica", values_to = "Valor")
-
-# Graficar
-ggplot(resultados_largos, aes(x = threshold, y = Valor, color = Metrica)) +
-  geom_line(size = 1) +
-  geom_vline(xintercept = 0.2, linetype = "dashed", color = "gray40") +
-  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
-  labs(title = "Evaluación de métricas según el umbral de corte",
-       x = "Umbral de corte (probabilidad para 'Pobre = Sí')",
-       y = "Valor de la métrica",
-       color = "Métrica") +
-  theme_minimal()
-
-# Nos quedamos con model_acc
-
-# Envío Kaggle Elastic Net # ---- 
-# Modelo ACC
+## Envío Kaggle Elastic Net ## 
+# Poner el modelo que en efecto funcione
 
 ctrl_acc_f <- trainControl(method = "cv",
                            number = 5,
-                           classProbs = TRUE,
                            savePredictions = T)
 
-model_acc_f <- train(Pobre ~ Nper + edad_jefe + nocupados + nmujeres + nmenores + 
-                       H_Head_mujer +  H_Head_Educ_level,
+model_acc_f <- train(price ~ lat + lon + bedrooms + year + month,
                      data = train, method = "glmnet",
-                     metric = "Accuracy", trControl = ctrl_acc, 
+                     metric = "RMSE", trControl = ctrl_acc, 
                      tuneGrid = grid)
 
 
-#- Hacemos la predicción
+# Hacemos la predicción
 
 predictSample_en <- test %>%
-  mutate(prob_Si = predict(model_acc_f, newdata = test, type = "prob")[, "Si"],
-         pobre_lab = ifelse(prob_Si > 0.2, "Si", "No")) %>%
-  dplyr::select(id, pobre_lab)
-
-head(predictSample_en)
-
-#- Transformamos variable pobre para que cumpla con la especificación de la competencia
-
-predictSample_en <- predictSample_en %>%
-  mutate(pobre = ifelse(pobre_lab == "Si", 1, 0)) %>%
-  dplyr::select(id, pobre)
+  mutate(price= predict(model_acc_f, newdata = test)) %>%
+  dplyr::select(property_id, price)
 
 head(predictSample_en)
 
@@ -269,9 +179,194 @@ name<- paste0(
   "_alpha_" , alpha_str, 
   ".csv") 
 
-write.csv(predictSample_en,name, row.names = FALSE)
+write.csv(predictSample_en, name, row.names = FALSE)
+
+## ARBOLES ----------
+
+# Version 1
+
+complex_tree_1 <- rpart(price ~ lat + lon + bedrooms + year + month, 
+                        data = train_split,
+                        method = "anova",
+                        cp = 0)
+
+prp(complex_tree_1)
 
 
+# Poda del árbol
+arbol_1 <- rpart(price ~ lat + lon + bedrooms + year + month, 
+                 data = train_split,
+                 method = "anova")
+
+# AUC para el árbol
+pred_prob_1 <- predict(arbol_1, newdata = test_split)
+
+# Evaluación con RMSE
+rmse_arbol_1 <- Metrics::rmse(test_split$price, pred_prob_1)
+print(rmse_arbol_1)
 
 
+# Control para cross-validation
+ctrl <- trainControl(method = "cv",
+                     number = 5,
+                     savePredictions = TRUE)
 
+# Grilla de cp
+grid <- expand.grid(cp = seq(0, 0.03, 0.001))
+
+# Modelo con cross-validation
+cv_tree_1 <- train(price ~ lat + lon + bedrooms + year + month,
+                   data = train_split,
+                   method = "rpart", 
+                   trControl = ctrl, 
+                   tuneGrid = grid,
+                   metric = "RMSE")
+
+# Predicción para Kaggle
+predictSample_CART <- test_split %>% 
+  mutate(price = predict(cv_tree_1, newdata = test_split)) %>%
+  dplyr::select(property.id, price)
+
+name <- "CART_alpha0.csv"
+write.csv(predictSample_CART, name, row.names = FALSE)
+
+## RANDOM FOREST 
+
+
+## BOOSTING ----
+
+# Formando los evaluadores
+  fiveStats <- function(...) {
+  c(
+    caret::defaultSummary(...)
+  )
+}
+
+
+ctrl<- trainControl(method = "cv",
+                    number = 5,
+                    summaryFunction = fiveStats,
+                    verbose=FALSE,
+                    savePredictions = TRUE)
+
+### -----Modelo Adaboost -----------
+
+#Formando la grilla de valores a usar en el proceso de entrenamiento
+
+adagrid <- expand.grid(
+  mfinal = c(50, 100), 
+  maxdepth = c(1, 2), 
+  coeflearn = c('Breiman')
+)
+
+#Creando el modelo
+
+set.seed(10101)
+
+adaboost_tree <- train(price~lat + lon + bedrooms + year + month,
+                       data = train_split, 
+                       method = "AdaBoost.M1",
+                       trControl = ctrl,
+                       metric = "RMSE",
+                       tuneGrid = adagrid
+)
+
+#ahora predecimos el funcionamiento del modelo
+predictSample_adaboost <- test_split   %>% 
+  mutate(price = predict(adaboost_tree, newdata = test_split)) %>%
+  dplyr::select(property.id, price)
+
+head(predictSample_adaboost)
+
+# Formato específico Kaggle
+lambda_str <- gsub("\\.", "_", as.character(round(adaboost_tree$bestTune$mfinal, 4)))
+alpha_str <- gsub("\\.", "_", as.character(adaboost_tree$bestTune$maxdepth))
+al_str <- gsub("\\.", "_", as.character(adaboost_tree$bestTune$coeflearn))
+
+name<- paste0(
+  "Adaboost_", lambda_str,
+  "_mfinal_" , alpha_str, 
+  "_coeflearn_", al_str,
+  ".csv")
+
+write.csv(predictSample_adaboost, name, row.names = FALSE)
+
+
+### Modelo Gradient Boosting ----
+
+p_load(gbm)
+
+grid_gbm <- expand.grid(n.trees = c(50, 100, 150),
+                        interaction.depth = c(1, 2),
+                        shrinkage = c(0.01),
+                        n.minobsinnode = c(5, 10))
+
+set.seed(91519)
+gbm_tree <- train(price~lat + lon + bedrooms + year + month,
+                  data = train_split, 
+                  method = "gbm", 
+                  trControl = ctrl,
+                  tuneGrid = grid_gbm,
+                  metric = "RMSE",
+                  verbose = FALSE
+)
+
+predictSample_gbm <- test_split %>%
+  mutate(price = predict(gbm_tree, newdata = test_split)) %>%
+  dplyr::select(property.id, price)
+
+head(predictSample_gbm)
+
+
+### Modelo XGBoost ----
+
+p_load(xgboost)
+
+grid_xgboost <- expand.grid(nrounds = c(250, 500),
+                            max_depth = c(1, 2),
+                            eta = c(0.1, 0.01), 
+                            gamma = c(0, 1), 
+                            min_child_weight = c(10, 25),
+                            colsample_bytree = c(0.4, 0.7), 
+                            subsample = c(0.7))
+
+set.seed(91519)
+
+Xgboost_tree <- train(price ~ lat + lon + bedrooms + year + month,
+                      data = train_split, 
+                      method = "xgbTree", 
+                      trControl = ctrl,
+                      tuneGrid = grid_xgboost,
+                      metric = "RMSE",
+                      verbosity = 0
+)
+
+predictSample_Xgboost <- test_split %>%
+  mutate(Price = predict(Xgboost_tree, newdata = test_split)) %>%
+  dplyr::select(property.id, Price)
+
+head(predictSample_Xgboost)
+
+
+# Formato específico Kaggle para XGBoost
+nrounds_str <- gsub("\\.", "_", as.character(round(Xgboost_tree$bestTune$nrounds, 4)))
+max_depth_str <- gsub("\\.", "_", as.character(Xgboost_tree$bestTune$max_depth))
+eta_str <- gsub("\\.", "_", as.character(Xgboost_tree$bestTune$eta))
+gamma_str <- gsub("\\.", "_", as.character(Xgboost_tree$bestTune$gamma))
+colsample_bytree_str <- gsub("\\.", "_", as.character(Xgboost_tree$bestTune$colsample_bytree))
+min_child_weight_str <- gsub("\\.", "_", as.character(Xgboost_tree$bestTune$min_child_weight))
+subsample_str <- gsub("\\.", "_", as.character(Xgboost_tree$bestTune$subsample))
+
+name <- paste0(
+  "XTBoost_",
+  "nrounds_", nrounds_str, 
+  "_depth_", max_depth_str,
+  "_eta_", eta_str,
+  "_gamma_", gamma_str,
+  "_colsample_", colsample_bytree_str,
+  "_minchild_", min_child_weight_str,
+  "_subsample_", subsample_str,
+  ".csv"
+)
+
+write.csv(predictSample_Xgboost, name, row.names = FALSE)
