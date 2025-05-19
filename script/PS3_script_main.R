@@ -59,66 +59,47 @@ test_basica <- read_csv(
 # --- Modificaicones a la base de datos ------#
 #Aca van las modificaciones a la base de datos original para lograr que el modelo funcione.
 
+# --- Creacion de las particiones de datos para probar -------- #
+# Creamos índices para dividir
+index <- createDataPartition(train$price, p = 0.7, list = FALSE)
+
+train_split <- train[index, ]  #Con esta se hace la estimación
+test_split  <- train[-index, ] #Con esta se hace la prueba del F1
+
+
 
 
 #----- MODELOS ----------------------# --------
 
 # ---------- OLS ---------- # ----
-#Montamos la validacion cruzada
+# Montamos la validación cruzada
 set.seed(10101)
 ctrl <- trainControl(method = "cv",
                      number = 5,
-                     classProbs = TRUE,
-                     savePredictions = T)
+                     savePredictions = TRUE)
 
-#Usamos un modelo con todas las varibles
+# Usamos un modelo con todas las variables
 
-model_ols1 <- train(precio ~ lat + lot + bedroom + year + month,
-                    data = train,
-                    metric = "Accuracy",
+model_ols1 <- train(price ~ lat + lon + bedrooms + year,
+                    data = train_basica,
                     method = "glm",
                     trControl = ctrl) 
 
 model_ols1
 
-#Obtenemos la matriz de confusion 
+# Realizamos la predicción
+predictSampleOLS <- test_basica %>% 
+  mutate(price = predict(model_ols1, newdata = test_basica)) %>% 
+  dplyr::select(property_id, price)
 
-y_pred <- predict(model_ols1, newdata = train)
-y_true <- factor(train$Pobre, levels = c("No", "Si"))
+head(predictSampleOLS)
 
-confusionMatrix(data = y_pred, reference = y_true, positive = "Si")
-
-
-#Haciendo la prediccion 
-predictSample <- test   %>% 
-  mutate(pobre_lab = predict(model_ols1, newdata = test, type = "raw")    ## predicted class labels
-  )  %>% dplyr::select(id,pobre_lab)
-
-head(predictSample)
-
-# Transformamos variable pobre para que cumpla con la especificación de la competencia
-predictSample <- predictSample %>% 
-  mutate(pobre=ifelse(pobre_lab=="Yes",1,0)) %>% 
-  dplyr::select(id,pobre)
-head(predictSample)
-
-# Formato específico Kaggle 
-
-name<- paste0(
-  "OLS.csv") #Dado que el modelo no tiene hiperparametros no es necesario usar algo mas sofisticado
-
-write.csv(predictSample,name, row.names = FALSE)
-
+# Guardamos el resultado en formato CSV para Kaggle
+write.csv(predictSampleOLS, "OLS.csv", row.names = FALSE)
 
 # ---------- ELASTIC NET ---------- # ----
 set.seed(1410)
-library(caret)
 
-# Creamos índices para dividir
-index <- createDataPartition(train$Pobre, p = 0.7, list = FALSE)
-
-train_split <- train[index, ]
-test_split  <- train[-index, ]
 
 # Grilla para glmnet
 grid <- expand.grid(
