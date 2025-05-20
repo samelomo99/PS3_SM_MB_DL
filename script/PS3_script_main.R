@@ -50,10 +50,18 @@ pacman::p_load(
   ipred,
   gbm,
   visdat,
-  stringi,
+  stringi, # Manipular cadenas de texto
   sf, # Leer/escribir/manipular datos espaciales
   tidymodels,  # entrenamiento de modelos
-  spatialsample # Muestreo espacial para modelos de aprendizaje automático
+  spatialsample, # Muestreo espacial para modelos de aprendizaje automático
+  plotly, # Gráficos interactivos
+  leaflet, # Mapas interactivos
+  tmaptools, # geocode_OSM()
+  osmdata, # Get OSM's data
+  tm,   # para Text Mining
+  tidytext, #Para tokenización
+  stopwords,  # consultar stopwords
+  tidymodels, # modelos de machine learning
   )
 
 
