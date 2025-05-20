@@ -189,13 +189,12 @@ write.csv(predictSampleOLS, "/Users/miguelblanco/Library/CloudStorage/OneDrive-P
 ## ---------- ELASTIC NET  ----
 set.seed(1410)
 
-
 # Grilla para glmnet
-grid <- expand.grid(
-  alpha = seq(0, 1, by = 0.1),
-  lambda = 10^seq(10, -2, length = 10)
-)
+elastic_net_spec <- linear_reg(penalty = tune(), mixture = tune()) %>%
+  set_engine("glmnet")
 
+grid_values <- grid_regular(penalty(range = c(-2,1)), levels = 50) %>%
+  expand_grid(mixture = c(0, 0.25,  0.5, 0.75,  1))
 
 ### Modelo con Accuracy ----
 ctrl_acc <- trainControl(method = "cv",
