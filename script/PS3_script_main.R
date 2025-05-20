@@ -48,7 +48,12 @@ pacman::p_load(
   rpart, 
   rpart.plot, 
   ipred,
-  gbm
+  gbm,
+  visdat,
+  stringi,
+  sf, # Leer/escribir/manipular datos espaciales
+  tidymodels,  # entrenamiento de modelos
+  spatialsample # Muestreo espacial para modelos de aprendizaje automático
   )
 
 
@@ -66,12 +71,89 @@ test_basica <- read_csv(
 # --- Modificaicones a la base de datos ------#
 #Aca van las modificaciones a la base de datos original para lograr que el modelo funcione.
 
+train_basica %>%
+  count(property_type) #aca miramos cuantos tipos de pripiedad hay, tenemos dos Apartamentos y Casas
+
+#para ver las missings
+missing_info <- data.frame(
+  variable = names(train_basica),
+  missing_count = sapply(train_basica, function(x) sum(is.na(x))),
+  missing_pct = sapply(train_basica, function(x) mean(is.na(x))) * 100
+)
+
+skim(train_basica)
+#y graficamente 
+vis_dat(train_basica)
+
+#ahora vamos a imputar las variabes con muchos missings 
+train_basica %>%
+  count(rooms) #valor mas comun es 3
+
+train_basica %>%
+  count(bathrooms) #valor mas comun es 2
+
+# Calcular la mediana
+mediana_sup_cubierta <- median(train_basica$surface_covered, na.rm = TRUE)
+mediana_sup_total<- median(train_basica$surface_total, na.rm = TRUE)
+
+# Imputar datos faltantes
+train <- train_basica %>%
+  mutate(rooms = replace_na(rooms, 3),
+         bathrooms = replace_na(bathrooms, 2),
+         surface_covered = replace_na(surface_covered, mediana_sup_cubierta),
+         surface_total = replace_na(surface_total, mediana_sup_total),)
+
+# Revision de la nueva base
+
+skim(train)
+
+# volviendo a revisar graficamente 
+vis_dat(train)
+
+# --- Ahora con las variables test --------3
+skim(test_basica)
+#y graficamente 
+vis_dat(test_basica)
+
+#ahora vamos a imputar las variabes con muchos missings 
+test_basica %>%
+  count(rooms) #valor mas comun es 3
+
+test_basica %>%
+  count(bathrooms) #valor mas comun es 2
+
+# Calcular la mediana
+#mediana_sup_cubierta_test <- median(test_basica$surface_covered, na.rm = TRUE)
+#mediana_sup_total_test<- median(test_basica$surface_total, na.rm = TRUE)
+
+# Imputar datos faltantes
+test <- test_basica %>%
+  mutate(rooms = replace_na(rooms, 3),
+         bathrooms = replace_na(bathrooms, 2),
+         surface_covered = replace_na(surface_covered, mediana_sup_cubierta),
+         surface_total = replace_na(surface_total, mediana_sup_total))
+
+# Revision de la nueva base
+
+skim(test)
+
+# volviendo a revisar graficamente 
+vis_dat(test)
+
+# ------- Agregamos las nuevas variables --------------#
+
+
+
+
+
+
+
 # --- Creacion de las particiones de datos para probar -------- #
 # Creamos índices para dividir (Recuerde cambiarlos una vez este la base de datos final)
-index <- createDataPartition(train_basica$price, p = 0.7, list = FALSE)
+index <- createDataPartition(train$price, p = 0.7, list = FALSE)
 
-train_split <- train_basica[index, ]  #Con esta se hace la estimación
-test_split  <- train_basica[-index, ] #Con esta se hace la prueba del F1
+train_split <- train[index, ]  #Con esta se hace la estimación
+test_split  <- train[-index, ] #Con esta se hace la prueba del F1
 
 
 
@@ -87,22 +169,22 @@ ctrl <- trainControl(method = "cv",
 
 # Usamos un modelo con todas las variables
 
-model_ols1 <- train(price ~ lat + lon + bedrooms + year,
-                    data = train_basica,
+model_ols1 <- train(price ~ lat + lon + bedrooms + year + month + bathrooms + property_type,
+                    data = train,
                     method = "glm",
                     trControl = ctrl) 
 
 model_ols1
 
 # Realizamos la predicción
-predictSampleOLS <- test_basica %>% 
-  mutate(price = predict(model_ols1, newdata = test_basica)) %>% 
+predictSampleOLS <- test %>% 
+  mutate(price = predict(model_ols1, newdata = test)) %>% 
   dplyr::select(property_id, price)
 
 head(predictSampleOLS)
 
 # Guardamos el resultado en formato CSV para Kaggle
-write.csv(predictSampleOLS, "OLS.csv", row.names = FALSE)
+write.csv(predictSampleOLS, "/Users/miguelblanco/Library/CloudStorage/OneDrive-Personal/Materias Uniandes/2025 10/Big Data y Maching Learning para Economia Aplicada/Nueva carpeta/PS3_SM_MB_DL/stores/OLS.csv", row.names = FALSE)
 
 ## ---------- ELASTIC NET  ----
 set.seed(1410)
@@ -120,7 +202,7 @@ ctrl_acc <- trainControl(method = "cv",
                          number = 5,
                          savePredictions = T)
 
-model_acc <- train(price ~ lat + lon + bedrooms + year + month,
+model_acc <- train(price ~ lat + lon + bedrooms + year + month + bathrooms + property_type,
                    data = train_split, method = "glmnet",
                    metric = "RMSE", trControl = ctrl_acc, 
                    tuneGrid = grid)
@@ -129,7 +211,7 @@ model_acc <- train(price ~ lat + lon + bedrooms + year + month,
 ctrl_rmse <- trainControl(method = "cv", number = 5,
                           savePredictions = T)
 
-model_rmse <- train(price ~ lat + lon + bedrooms + year + month,
+model_rmse <- train(price ~ lat + lon + bedrooms + year + month + bathrooms + property_type,
                     data = train_split, method = "glmnet",
                     metric = "RMSE", trControl = ctrl_rmse, 
                     tuneGrid = grid)
