@@ -76,7 +76,7 @@ test_basica <- read_csv(
   "https://raw.githubusercontent.com/samelomo99/PS3_SM_MB_DL/refs/heads/main/stores/test.csv"
 ) # La base de test original 
 
-# --- Modificaicones a la base de datos ------#
+## --- Modificaicones a la base de datos ------
 #Aca van las modificaciones a la base de datos original para lograr que el modelo funcione.
 
 train_basica %>%
@@ -118,7 +118,174 @@ skim(train)
 # volviendo a revisar graficamente 
 vis_dat(train)
 
-# --- Ahora con las variables test --------3
+# Calculamos valor del metro cuadrado 
+train <- train %>%
+  mutate(precio_por_mt2 = round(price / surface_total, 0))%>%
+  mutate(precio_por_mt2  =precio_por_mt2/1000000 )  ## precio x Mt2 en millones. 
+
+stargazer(train["precio_por_mt2"],type="text")
+hist(train$precio_por_mt2)
+#Manejando los valores atipicos
+low <- round(mean(train$precio_por_mt2) - 2*sd(train$precio_por_mt2),2)
+up <- round(mean(train$precio_por_mt2) + 2*sd(train$precio_por_mt2))
+perc1 <- unname(round(quantile(train$precio_por_mt2, probs = c(.01)),2))
+
+#
+p1 <- train %>%
+  ggplot(aes(y = precio_por_mt2)) +
+  geom_boxplot(fill = "darkblue", alpha = 0.4) +
+  labs(
+    title = "Muestra completa",
+    y = "Precio por metro cuadrado (millones)", x = "") +
+  theme_bw()
+p2 <- train %>%
+  filter(between(precio_por_mt2, perc1,  up)) %>% 
+  ggplot(aes(y = precio_por_mt2)) +
+  geom_boxplot(fill = "darkblue", alpha = 0.4) +
+  labs(
+    title = "Muestra filtrada",
+    y = "Precio por metro cuadrado (millones)", x = "") +
+  theme_bw()
+grid.arrange(p1, p2, ncol = 2)
+
+# Ahora si generamos el filtro 
+
+#Filtramos outliers
+train <- train %>%
+  filter(between(precio_por_mt2, perc1, up))
+
+# Visualicemos la distribución de nuestra variable de interés
+p <- ggplot(train, aes(x = price)) +
+  geom_histogram(fill = "darkblue", alpha = 0.4) +
+  labs(x = "Valor de venta (log-scale)", y = "Cantidad") +
+  scale_x_log10(labels = scales::dollar) +
+  theme_bw()
+
+ggplotly(p)
+
+## --- Haciendo Graficas de mapas --------------
+
+# Creamos un mapa base
+leaflet() %>% 
+  addTiles() 
+# Eliminamos las observaciones que no tienen información de latitud o longitud (que creo no es nninguna)
+train <- train %>%
+  filter(!is.na(lat) & !is.na(lon))
+
+# Observamos la primera visualización
+leaflet() %>%
+  addTiles() %>%
+  addCircles(lng = train$lon, 
+             lat = train$lat)
+
+## Escalamos para que se pueda graficar
+train <- train %>%
+  mutate(precio_por_mt2_sc =( (precio_por_mt2 - min(precio_por_mt2)) / (max(precio_por_mt2) - min(precio_por_mt2))))
+
+train <- train %>%
+  mutate(color = case_when(property_type == "Apartamento" ~ "#2A9D8F",
+                           property_type == "Casa" ~ "#F4A261"))
+
+# Vamos a crear un mensaje en popup con html
+html <- paste0("<b>Precio:</b> ",
+               scales::dollar(train$price),
+               "<br> <b>Area:</b> ",
+               as.integer(train$surface_total), " mt2",
+               "<br> <b>Tipo de immueble:</b> ",
+               train$property_type,
+               "<br> <b>Numero de alcobas:</b> ",
+               as.integer(train$rooms),
+               "<br> <b>Numero de baños:</b> ",
+               as.integer(train$bathrooms))
+
+# Eliminamos los immuebles con área menor a 20
+train <- train %>% filter( surface_covered > 20)
+
+# Encontramos el queremos que sea el centro del mapa 
+latitud_central <- mean(train$lat)
+longitud_central <- mean(train$lon)
+
+# Creamos el plot
+leaflet() %>%
+  addTiles() %>%
+  setView(lng = longitud_central, lat = latitud_central, zoom = 12) %>%
+  addCircles(lng = train$lon, 
+             lat = train$lat, 
+             col = train$color,
+             fillOpacity = 1,
+             opacity = 1,
+             radius = train$precio_por_mt2_sc*10,
+             popup = html)
+# Creamos un mapa con los estratos 
+ #descargamos
+estratos <- st_read("https://datosabiertos.bogota.gov.co/dataset/55467552-0af4-4524-a390-a2956035744e/resource/29f2d770-bd5d-4450-9e95-8737167ba12f/download/manzanaestratificacion.json")
+ #vemos mapa
+
+estratos <-st_transform(estratos,4626)
+ggplot()+
+  geom_sf(data=estratos, aes(fill = as.factor(ESTRATO)), color = "black", lwd = 0) +
+  scale_fill_brewer(palette = "Set1", name = "Estrato") +  # o usa otra como "Paired", "Set3", etc.
+  theme_minimal() +
+  labs(title = "Mapa por estrato", subtitle = "Estratos del 1 al 6")
+
+# Creamos un mapa con las avenidas mas cercanas 
+
+red_vial <- st_read("https://datosabiertos.bogota.gov.co/dataset/0e2bdaed-eb3c-4b14-90b4-44454013bbef/resource/c2966db7-eb06-4a79-931c-0661d790d03d/download/redinfraestructuravialarterial.json")
+
+red_vial<-st_transform(red_vial,4626)
+ggplot()+
+  geom_sf(data=red_vial, color = "red")
+
+#Creamos un mapa con los centros comerciales
+
+localidades <- st_read("https://datosabiertos.bogota.gov.co/dataset/856cb657-8ca3-4ee8-857f-37211173b1f8/resource/497b8756-0927-4aee-8da9-ca4e32ca3a8a/download/loca.json")
+
+localidades<-st_transform(localidades,4626)
+ggplot()+
+  geom_sf(data=localidades, color = "red")
+
+# Creamos un mapa para los parques 
+
+parques <- st_read("https://datosabiertos.bogota.gov.co/dataset/1ca41514-3671-41d6-8c3b-a970dc8c24a7/resource/16288e7f-0345-4680-84aa-40e987706ea8/download/parque.json")
+  
+parques <- st_transform(parques,4626)
+ggplot()+
+  geom_sf(data = parques, color = "green")
+
+# Creamos mapa para Centros Comerciales (CC)
+
+# 1. Cargar el archivo GeoJSON original desde Datos Abiertos
+CC <- st_read("https://datosabiertos.bogota.gov.co/dataset/ce479dd9-7d54-4400-a05d-8df538c43e29/resource/c91f8dbd-f0a4-4fe1-83be-935a2de908da/download/gran_centro_comercial.geojson")
+
+# 2. Definir el CRS ESRI:102771 manualmente (MAGNA-SIRGAS Cartesianas Origen Bogotá)
+bog_crs <- "+proj=tmerc +lat_0=4.599047222222222 +lon_0=-74.08091666666666 +k=1 +x_0=100000 +y_0=100000 +ellps=GRS80 +units=m +no_defs"
+
+# 3. Asignar el CRS correcto al objeto (sin transformar aún)
+st_crs(CC) <- bog_crs
+
+# 4. Transformar a WGS 84 (EPSG:4326) para trabajar en grados
+CC <- st_transform(CC, 4626)
+
+# 5. Verificación opcional
+print(st_crs(CC))
+print(st_bbox(CC))  # Debe dar xmin ≈ -74.1, ymin ≈ 4.5
+
+# 6. Graficar con ggplot2
+ggplot() +
+  geom_sf(data = CC, fill = "orange", color = "red", alpha = 0.6) +
+  coord_sf(lims_method = "geometry_bbox") +
+  theme_minimal() +
+  labs(title = "Centros Comerciales de Bogotá", subtitle = "Fuente: Datos Abiertos Bogotá")
+
+
+
+
+
+
+
+
+
+## --- Ahora con las variables test --------
 skim(test_basica)
 #y graficamente 
 vis_dat(test_basica)
