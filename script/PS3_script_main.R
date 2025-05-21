@@ -936,7 +936,7 @@ nMAE2_LM<- MAE_2_LM/mean(train_split$price)*100 %>% round(.,2)
 nMAE2_LM
 # Ahora ya con los datos reales para presentar 
 # ========================
-# MANIPULACIÓN DE LA BASE "test"
+# Con todos los datos 
 # ========================
 
 # Primera receta (recuerde poner los pasos en orden para el sistema le modele corectamente)
@@ -1042,17 +1042,25 @@ augment(EN_final1_fit_LM, new_data = test) %>%
 augment(EN_final2_fit_LM, new_data = test) %>%
   mae(truth = price, estimate = .pred)
 
-## Finalmente revisando si el error es alto o bajo 
+## Finalmente sacando los valores
 
-MAE_1_LM <- augment(EN_final1_fit_LM, new_data = test) %>%
-  mae(truth = price, estimate = .pred) %>% select(.estimate) %>% pull()
-nMAE1_LM<- MAE_1_LM/mean(train$price)*100 %>% round(.,2) #aca lo que hizo gustavo fue mirar el tamaño del error vs el promedio en general
-nMAE1_LM
+# Modelo 1
+predicciones_1_LM <- augment(EN_final1_fit_LM, new_data = test) %>%
+  dplyr::select(property_id, .pred) %>%
+  dplyr::rename(price = .pred)
 
-MAE_2_LM <- augment(EN_final2_fit_LM, new_data = test) %>%
-  mae(truth = price, estimate = .pred) %>% select(.estimate) %>% pull()
-nMAE2_LM<- MAE_2_LM/mean(train$price)*100 %>% round(.,2)
-nMAE2_LM
+# Modelo 2
+predicciones_2_LM<- augment(EN_final2_fit_LM, new_data = test) %>%
+  dplyr::select(property_id, .pred) %>%
+  dplyr::rename(price = .pred)
+
+# Unir resultados en una sola tabla
+predicciones_LM <- left_join(predicciones_1_LM, predicciones_2_LM, by = "property_id")
+
+head(predicciones_1_LM)
+head(predicciones_2_LM)
+head(predicciones_LM)
+
 
 # Guardamos el resultado en formato CSV para Kaggle
 write.csv(predictSampleOLS, "/Users/miguelblanco/Library/CloudStorage/OneDrive-Personal/Materias Uniandes/2025 10/Big Data y Maching Learning para Economia Aplicada/Nueva carpeta/PS3_SM_MB_DL/stores/OLS.csv", row.names = FALSE)
