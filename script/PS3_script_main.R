@@ -803,7 +803,7 @@ test <- read.csv("https://raw.githubusercontent.com/samelomo99/PS3_SM_MB_DL/refs
 index <- createDataPartition(train$price, p = 0.7, list = FALSE)
 
 train_split <- train[index, ]  #Con esta se hace la estimación
-test_split  <- train[-index, ] #Con esta se hace la prueba del F1
+test_split  <- train[-index, ] #Con esta se hace la prueba del MAE
 
 
 
@@ -812,26 +812,128 @@ test_split  <- train[-index, ] #Con esta se hace la prueba del F1
 
 ## ---------- OLS ----------------------
 # Montamos la validación cruzada
-set.seed(10101)
-ctrl <- trainControl(method = "cv",
-                     number = 5,
-                     savePredictions = TRUE)
+LM_spec <- linear_reg(penalty = tune(), mixture = tune()) %>% #tune es para que escoga optimamente 
+  set_engine("glm")
 
-# Usamos un modelo con todas las variables
+grid_values_LM <- grid_regular(penalty(range = c(-2,1)), levels = 50) %>% #estos dos ultimos codigos son para que haga la conbinacion optima entre lasso y ridge
+  expand_grid(mixture = c(0, 0.25,  0.5, 0.75,  1))
 
-model_ols1 <- train(price ~ lat + lon + bedrooms + year + month + bathrooms + property_type,
-                    data = train,
-                    method = "glm",
-                    trControl = ctrl) 
+# Primera receta (recuerde poner los pasos en orden para el sistema le modele corectamente)
+rec_1_LM <- recipe(price ~ distancia_parque + area_parque + rooms + bathrooms + property_type , data = train_split) %>%
+  step_dummy(all_nominal_predictors()) %>%  # crea dummies para las variables categóricas
+  step_interact(terms = ~ distancia_parque:matches("property_type_") + area_parque:matches("property_type_")) %>% #aca usa matches dado que en la parte anterior las variables property type se habian vuelot dummyes en la parte anterior 
+  step_novel(all_nominal_predictors()) %>%   # para las clases no antes vistas en el train. 
+  step_zv(all_predictors()) %>%   #  elimina predictores con varianza cero (constantes)
+  step_normalize(all_predictors())  # normaliza los predictores. 
 
-model_ols1
+# Segunda receta 
+rec_2_LM <- recipe(price ~  distancia_parque + area_parque + rooms + bathrooms + property_type, data = train_split) %>%
+  step_dummy(all_nominal_predictors()) %>% 
+  step_interact(terms = ~ distancia_parque:matches("property_type_")+area_parque:matches("property_type_")) %>% 
+  step_interact(terms = ~ distancia_parque:rooms) %>% 
+  step_interact(terms = ~ distancia_parque:area_parque) %>% 
+  step_poly(distancia_parque, area_parque, degree = 2) %>%
+  step_novel(all_nominal_predictors()) %>% 
+  step_zv(all_predictors()) %>%   
+  step_normalize(all_predictors())
 
-# Realizamos la predicción
-predictSampleOLS <- test %>% 
-  mutate(price = predict(model_ols1, newdata = test)) %>% 
-  dplyr::select(property_id, price)
+workflow_1_LM <- workflow() %>% 
+  # Agregar la receta de preprocesamiento de datos. En este caso la receta 1
+  add_recipe(rec_1_LM) %>%
+  # Agregar la especificación del modelo de regresión Elastic Net
+  add_model(LM_spec)
 
-head(predictSampleOLS)
+## Lo mismo con la receta rec_2 
+
+workflow_2_LM <- workflow() %>%
+  add_recipe(rec_2_LM) %>%
+  add_model(LM_spec)
+
+## Entrenamiento de los hiperparametros: Validacion Cruzada Espacial en Bloques 
+
+# definimos nuestra variable como sf
+train_sf_LM <- st_as_sf(
+  train_split,
+  # "coords" is in x/y order -- so longitude goes first!
+  coords = c("lon", "lat"),
+  # Set our coordinate reference system to EPSG:4326,
+  # the standard WGS84 geodetic coordinate reference system
+  crs = 4326
+)
+# Definiendo la validacion cruzada en bloques 
+
+set.seed(86936)
+block_folds_LM <- spatial_block_cv(train_sf_LM, v = 5) #Esto es lo que monta la validacion cruzada 
+block_folds_LM
+
+autoplot(block_folds_LM) #esta grafica me saca los fold y me muestra que quedo donde
+
+p_load("purrr")
+
+walk(block_folds_LM$splits, function(x) print(autoplot(x))) #Aqui me muesta como seria cada una de las pruebas  
+
+## Ahora procedemos a escoger y entrenar los hiperparametros para CV espacial, esto de aca en adelante es carptinteria en general
+
+set.seed(86936)
+
+#con el flujo de trabajo 1
+tune_res1_LM <- tune_grid(
+  workflow_1_LM,         # El flujo de trabajo que contiene: receta y especificación del modelo
+  resamples = block_folds_LM,  # Folds de validación cruzada espacial
+  grid = grid_values_LM,        # Grilla de valores de penalización
+  metrics = metric_set(mae)  # metrica
+)
+
+collect_metrics(tune_res1_LM) #Esto te saca solo las primeras obsercacioens 
+# Utilizar 'select_best' para seleccionar el mejor valor.
+best_tune_res1_LM<- select_best(tune_res1_LM, metric = "mae")
+best_tune_res1_LM
+
+set.seed(86936)
+
+#Con el flujo de trabajo 2
+tune_res2_LM <- tune_grid(
+  workflow_2_LM,         # El flujo de trabajo que contiene: receta y especificación del modelo
+  resamples = block_folds_LM,  # Folds de validación cruzada
+  grid = grid_values_LM,        # Grilla de valores de penalización
+  metrics = metric_set(mae)  # metrica
+)
+
+collect_metrics(tune_res2_LM)
+
+# Utilizar 'select_best' para seleccionar el mejor valor.
+best_tune_res2_LM<- select_best(tune_res2_LM, metric = "mae")
+best_tune_res2_LM
+
+# Finalizar el flujo de trabajo 'workflow' con el mejor valor de parametros
+res1_final_LM <- finalize_workflow(workflow_1_LM, best_tune_res1_LM)
+
+# Ajustar el modelo  utilizando los datos de entrenamiento
+res2_final_LM <- finalize_workflow(workflow_2_LM, best_tune_res2_LM)
+
+
+# Aqui si vamos a entrenar el modelo con los datos finales 
+EN_final1_fit_LM <- fit(res1_final_LM, data = train_split)
+EN_final2_fit_LM <- fit(res2_final_LM, data = train_split)
+
+augment(EN_final1_fit_LM, new_data = test_split) %>%
+  mae(truth = price, estimate = .pred)
+
+augment(EN_final2_fit_LM, new_data = test_split) %>%
+  mae(truth = price, estimate = .pred)
+
+## Finalmente revisando si el error es alto o bajo 
+
+MAE_1_LM <- augment(EN_final1_fit_LM, new_data = test_split) %>%
+  mae(truth = price, estimate = .pred) %>% select(.estimate) %>% pull()
+nMAE1_LM<- MAE_1_LM/mean(train_split$price)*100 %>% round(.,2) #aca lo que hizo gustavo fue mirar el tamaño del error vs el promedio en general
+nMAE1_LM
+
+MAE_2_LM <- augment(EN_final2_fit_LM, new_data = test_split) %>%
+  mae(truth = price, estimate = .pred) %>% select(.estimate) %>% pull()
+nMAE2_LM<- MAE_2_LM/mean(train_split$price)*100 %>% round(.,2)
+nMAE2_LM
+
 
 # Guardamos el resultado en formato CSV para Kaggle
 write.csv(predictSampleOLS, "/Users/miguelblanco/Library/CloudStorage/OneDrive-Personal/Materias Uniandes/2025 10/Big Data y Maching Learning para Economia Aplicada/Nueva carpeta/PS3_SM_MB_DL/stores/OLS.csv", row.names = FALSE)
