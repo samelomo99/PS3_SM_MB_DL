@@ -582,9 +582,11 @@ ggplot()+
       theme_minimal()
     
     ggplotly(p_avenida)
-
+### Guardar la base de datos para usarla ya de manera clara
     
-## --- Ahora con las variables test --------
+    write.csv(train, file = "/Users/miguelblanco/Library/CloudStorage/OneDrive-Personal/Materias Uniandes/2025 10/Big Data y Maching Learning para Economia Aplicada/Nueva carpeta/PS3_SM_MB_DL/Stores/trainfull.csv", row.names = FALSE)
+    
+## --- Ahora con las variables test --------------------------------------------------------------
 skim(test_basica)
 #y graficamente 
 vis_dat(test_basica)
@@ -615,15 +617,189 @@ skim(test)
 vis_dat(test)
 
 
+# 2. Mapa base
+leaflet() %>% addTiles()
+
+# 3. Filtramos observaciones sin lat/lon (esto elimina datos → ¡ADVERTENCIA!)
+# A PETICIÓN TUYA: No se puede eliminar observaciones
+# Verificamos si hay NA y solo avisamos
+sum_na_latlon <- sum(is.na(test$lat) | is.na(test$lon))
+print(paste("Observaciones con NA en lat/lon:", sum_na_latlon))
+# Si hay alguna, puedes imputarlas o visualizarlas aparte
 
 
 
+# Nota: Copiado directamente en test
+# 5. Colores
+
+test <- test %>%
+  mutate(color = case_when(property_type == "Apartamento" ~ "#2A9D8F",
+                           property_type == "Casa" ~ "#F4A261"))
+
+# 6. HTML popup
+html_test <- paste0("<br> <b>Area:</b> ",
+                    as.integer(test$surface_total), " mt2",
+                    "<br> <b>Tipo de inmueble:</b> ",
+                    test$property_type,
+                    "<br> <b>Numero de alcobas:</b> ",
+                    as.integer(test$rooms),
+                    "<br> <b>Numero de baños:</b> ",
+                    as.integer(test$bathrooms))
+
+# 7. Coordenadas centrales (usando solo las que no son NA)
+latitud_central_test <- mean(test$lat, na.rm = TRUE)
+longitud_central_test <- mean(test$lon, na.rm = TRUE)
+
+# 8. Visualización en Leaflet
+leaflet() %>%
+  addTiles() %>%
+  setView(lng = longitud_central_test, lat = latitud_central_test, zoom = 12) %>%
+  addCircles(lng = test$lon,
+             lat = test$lat,
+             col = test$color,
+             fillOpacity = 1,
+             opacity = 1,
+             popup = html_test)
+
+# 9. Transformar test a objeto sf
+sf_test <- st_as_sf(test, coords = c("lon", "lat"), crs = 4326)
+
+# ========================
+# DISTANCIA A PARQUE MÁS CERCANO (TEST)
+# ========================
+
+parques_test <- opq(bbox = getbb("Bogota Colombia")) %>%
+  add_osm_feature(key = "leisure", value = "park")
+parques_sf_test <- osmdata_sf(parques_test)
+parques_geometria_test <- parques_sf_test$osm_polygons %>%
+  dplyr::select(osm_id, name)
+parques_geometria_test <- st_as_sf(parques_sf_test$osm_polygons)
+centroides_parques_test <- st_centroid(parques_geometria_test, byid = TRUE)
+centroides_parques_test <- centroides_parques_test %>%
+  mutate(x = st_coordinates(centroides_parques_test)[, "X"],
+         y = st_coordinates(centroides_parques_test)[, "Y"])
+
+leaflet() %>%
+  addTiles() %>%
+  setView(lng = longitud_central_test, lat = latitud_central_test, zoom = 12) %>%
+  addPolygons(data = parques_geometria_test, col = "red", weight = 10,
+              opacity = 0.8, popup = parques_geometria_test$name) %>%
+  addCircles(lng = centroides_parques_test$x,
+             lat = centroides_parques_test$y,
+             col = "darkblue", opacity = 0.5, radius = 1)
+
+centroides_parques_sf_test <- st_as_sf(centroides_parques_test, coords = c("x", "y"), crs = 4326)
+dist_matrix_parques_test <- st_distance(x = sf_test, y = centroides_parques_sf_test)
+dist_min_parque_test <- apply(dist_matrix_parques_test, 1, min)
+test <- test %>% mutate(distancia_parque = dist_min_parque_test)
+
+p_parques_test <- ggplot(test, aes(x = distancia_parque)) +
+  geom_histogram(bins = 50, fill = "darkblue", alpha = 0.4) +
+  labs(x = "Distancia mínima a un parque en metros", y = "Cantidad",
+       title = "Distribución de la distancia a los parques") +
+  theme_bw()
+
+ggplotly(p_parques_test)
+
+# ========================
+# DISTANCIA A CENTRO COMERCIAL MÁS CERCANO (TEST)
+# ========================
+
+CC_geometria_test <- CC %>%
+  mutate(name = paste("Centro Comercial", row_number())) %>%
+  dplyr::select(name)
+
+centroides_CC_test <- st_centroid(CC_geometria_test, byid = TRUE)
+centroides_CC_test <- centroides_CC_test %>%
+  mutate(x = st_coordinates(centroides_CC_test)[, "X"],
+         y = st_coordinates(centroides_CC_test)[, "Y"])
+
+leaflet() %>%
+  addTiles() %>%
+  setView(lng = longitud_central_test, lat = latitud_central_test, zoom = 12) %>%
+  addPolygons(data = CC_geometria_test, col = "red", weight = 2,
+              opacity = 0.8, popup = CC_geometria_test$name) %>%
+  addCircles(lng = centroides_CC_test$x,
+             lat = centroides_CC_test$y,
+             col = "darkblue", opacity = 0.5, radius = 1)
+
+centroides_CC_sf_test <- st_as_sf(centroides_CC_test, coords = c("x", "y"), crs = 4326)
+dist_matrix_CC_test <- st_distance(x = sf_test, y = centroides_CC_sf_test)
+dist_min_CC_test <- apply(dist_matrix_CC_test, 1, min)
+test <- test %>% mutate(distancia_CC = dist_min_CC_test)
+
+p_CC_test <- ggplot(test, aes(x = distancia_CC)) +
+  geom_histogram(bins = 50, fill = "darkblue", alpha = 0.4) +
+  labs(x = "Distancia mínima a un centro comercial (m)", y = "Cantidad",
+       title = "Distribución de la distancia a centros comerciales") +
+  theme_bw()
+
+ggplotly(p_CC_test)
 
 
+# ========================
+# DISTANCIA A TRONCAL TM MÁS CERCANA (TEST)
+# ========================
+
+tm_lineas_test <- tm %>% dplyr::select(nombre_trazado_troncal)
+tm_lineas_test <- st_transform(tm_lineas_test, 4326)
+
+leaflet() %>%
+  addTiles() %>%
+  setView(lng = longitud_central_test, lat = latitud_central_test, zoom = 12) %>%
+  addPolylines(data = tm_lineas_test, color = "red", weight = 2, opacity = 0.8) %>%
+  addCircles(data = sf_test, color = "darkblue", radius = 1, opacity = 0.5)
+
+dist_matrix_tm_test <- st_distance(x = sf_test, y = tm_lineas_test)
+dist_min_tm_test <- apply(dist_matrix_tm_test, 1, min)
+test <- test %>% mutate(distancia_tm = dist_min_tm_test)
+
+p_tm_test <- ggplot(test, aes(x = distancia_tm)) +
+  geom_histogram(bins = 50, fill = "darkblue", alpha = 0.4) +
+  labs(x = "Distancia mínima al trazado de TransMilenio (m)", y = "Cantidad",
+       title = "Distribución de la distancia a TransMilenio") +
+  theme_bw()
+
+ggplotly(p_tm_test)
+
+# ========================
+# DISTANCIA A AVENIDAS PRINCIPALES MÁS CERCANAS (TEST)
+# ========================
+
+AV_test <- opq(bbox = getbb("Bogota Colombia")) %>%
+  add_osm_feature(key = "highway", value = c("trunk", "primary"))
+AV_sf_test <- osmdata_sf(AV_test)
+AV_lineas_test <- AV_sf_test$osm_lines
+AV_lineas_test <- st_transform(AV_lineas_test, 4326)
+
+leaflet() %>%
+  addTiles() %>%
+  addPolylines(data = AV_lineas_test, color = "red", weight = 2, opacity = 0.7) %>%
+  addCircles(data = sf_test, color = "blue", radius = 1, opacity = 0.5)
+
+dist_matrix_AV_test <- st_distance(x = sf_test, y = AV_lineas_test)
+dist_min_AV_test <- apply(dist_matrix_AV_test, 1, min)
+test <- test %>% mutate(distancia_avenida = dist_min_AV_test)
+
+p_avenida_test <- ggplot(test, aes(x = distancia_avenida)) +
+  geom_histogram(bins = 50, fill = "darkgreen", alpha = 0.5) +
+  labs(x = "Distancia mínima a avenidas (trunk/primary)", y = "Cantidad",
+       title = "Distribución de la distancia a avenidas principales") +
+  theme_minimal()
+
+ggplotly(p_avenida_test)
+
+# Finalmente guardamos la base de datos en formato CSV para poderla usar al final cuando la necesitemos 
+
+write.csv(test, file = "/Users/miguelblanco/Library/CloudStorage/OneDrive-Personal/Materias Uniandes/2025 10/Big Data y Maching Learning para Economia Aplicada/Nueva carpeta/PS3_SM_MB_DL/Stores/testfull.csv", row.names = FALSE)
 
 
-# --- Creacion de las particiones de datos para probar -------- #
-# Creamos índices para dividir (Recuerde cambiarlos una vez este la base de datos final)
+## --- Creacion de las particiones de datos para probar -------- 
+#LLamamos la base desde GitHub, para no correr todo 
+train <- read.csv("https://raw.githubusercontent.com/samelomo99/PS3_SM_MB_DL/refs/heads/main/stores/trainfull.csv")
+test <- read.csv("https://raw.githubusercontent.com/samelomo99/PS3_SM_MB_DL/refs/heads/main/stores/testfull.csv")
+
+# Creamos índices para dividir 
 index <- createDataPartition(train$price, p = 0.7, list = FALSE)
 
 train_split <- train[index, ]  #Con esta se hace la estimación
