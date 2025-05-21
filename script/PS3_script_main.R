@@ -458,8 +458,39 @@ ggplot()+
     
     ggplotly(p_tm)
     
-
-
+### Distancia a TM en lineas ---------
+    # 1. Seleccionar solo la geometría (opcionalmente puedes conservar el nombre del trazado si quieres visualizar)
+    tm_lineas <- tm %>%
+      dplyr::select(nombre_trazado_troncal)  # Asegúrate de que esta sea la columna correcta
+    
+    # 2. Asegurarse de que está en el CRS adecuado (EPSG 4326)
+    tm_lineas <- st_transform(tm_lineas, 4326)
+    
+    # 3. Visualización opcional del trazado TM + puntos de vivienda
+    leaflet() %>%
+      addTiles() %>%
+      setView(lng = longitud_central, lat = latitud_central, zoom = 12) %>%
+      addPolylines(data = tm_lineas, color = "red", weight = 2, opacity = 0.8) %>%
+      addCircles(data = sf_train, color = "darkblue", radius = 1, opacity = 0.5)
+    
+    # 4. Calcular matriz de distancias desde cada vivienda a los tramos de TransMilenio
+    dist_matrix_tm <- st_distance(x = sf_train, y = tm_lineas)
+    
+    # 5. Extraer la distancia mínima por vivienda
+    dist_min_tm <- apply(dist_matrix_tm, 1, min)
+    
+    # 6. Agregar la distancia como nueva variable al dataset de entrenamiento
+    train <- train %>% mutate(distancia_tm = dist_min_tm)
+    
+    # 7. Visualizar la distribución de las distancias
+    p_tm <- ggplot(train, aes(x = distancia_tm)) +
+      geom_histogram(bins = 50, fill = "darkblue", alpha = 0.4) +
+      labs(x = "Distancia mínima al trazado de TransMilenio (m)", y = "Cantidad",
+           title = "Distribución de la distancia a TransMilenio") +
+      theme_bw()
+    
+    ggplotly(p_tm)
+    
 
 ### Distancia a Avenida principal mas cercana ----------------------
     # 1. Seleccionamos geometría y nombre de los tramos viales
