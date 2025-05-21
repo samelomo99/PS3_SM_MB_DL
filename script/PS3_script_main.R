@@ -216,75 +216,343 @@ leaflet() %>%
              opacity = 1,
              radius = train$precio_por_mt2_sc*10,
              popup = html)
+#Transmormamos los datos de precios de vivienda a SF para graficar en ggplot
+sf_train<- st_as_sf(train, coords = c("lon", "lat"),  crs = 4326)
+
 # Creamos un mapa con los estratos 
  #descargamos
 estratos <- st_read("https://datosabiertos.bogota.gov.co/dataset/55467552-0af4-4524-a390-a2956035744e/resource/29f2d770-bd5d-4450-9e95-8737167ba12f/download/manzanaestratificacion.json")
  #vemos mapa
 
-estratos <-st_transform(estratos,4626)
+estratos <-st_transform(estratos,4326)
 ggplot()+
   geom_sf(data=estratos, aes(fill = as.factor(ESTRATO)), color = "black", lwd = 0) +
   scale_fill_brewer(palette = "Set1", name = "Estrato") +  # o usa otra como "Paired", "Set3", etc.
   theme_minimal() +
-  labs(title = "Mapa por estrato", subtitle = "Estratos del 1 al 6")
+  labs(title = "Mapa por estrato", subtitle = "Estratos del 1 al 6") + 
+  geom_sf(data=sf_train %>% filter(property_type == c("Apartamento", "Casa")),aes(color = precio_por_mt2) ,shape=15, size=0.3) +
+  theme_bw()
 
 # Creamos un mapa con las avenidas mas cercanas 
 
 red_vial <- st_read("https://datosabiertos.bogota.gov.co/dataset/0e2bdaed-eb3c-4b14-90b4-44454013bbef/resource/c2966db7-eb06-4a79-931c-0661d790d03d/download/redinfraestructuravialarterial.json")
 
-red_vial<-st_transform(red_vial,4626)
+red_vial<-st_transform(red_vial,4326)
 ggplot()+
-  geom_sf(data=red_vial, color = "red")
+  geom_sf(data=red_vial, color = "blue") + 
+  geom_sf(data=sf_train %>% filter(property_type == c("Apartamento", "Casa")),aes(color = precio_por_mt2) ,shape=15, size=0.3) +
+  theme_bw()
 
 #Creamos un mapa con los centros comerciales
 
 localidades <- st_read("https://datosabiertos.bogota.gov.co/dataset/856cb657-8ca3-4ee8-857f-37211173b1f8/resource/497b8756-0927-4aee-8da9-ca4e32ca3a8a/download/loca.json")
 
-localidades<-st_transform(localidades,4626)
+localidades<-st_transform(localidades,4326)
 ggplot()+
-  geom_sf(data=localidades, color = "red")
+  geom_sf(data=localidades, color = "red") + 
+  geom_sf(data=sf_train %>% filter(property_type == c("Apartamento", "Casa")),aes(color = precio_por_mt2) ,shape=15, size=0.3) +
+  theme_bw()
+  
 
 # Creamos un mapa para los parques 
 
 parques <- st_read("https://datosabiertos.bogota.gov.co/dataset/1ca41514-3671-41d6-8c3b-a970dc8c24a7/resource/16288e7f-0345-4680-84aa-40e987706ea8/download/parque.json")
   
-parques <- st_transform(parques,4626)
+parques <- st_transform(parques,4326)
 ggplot()+
-  geom_sf(data = parques, color = "green")
+  geom_sf(data = parques, color = "green") +
+  geom_sf(data=sf_train %>% filter(property_type == c("Apartamento", "Casa")),aes(color = precio_por_mt2) ,shape=15, size=0.3) +
+  theme_bw()
 
 # Creamos mapa para Centros Comerciales (CC)
 
-# 1. Cargar el archivo GeoJSON original desde Datos Abiertos
-CC <- st_read("https://datosabiertos.bogota.gov.co/dataset/ce479dd9-7d54-4400-a05d-8df538c43e29/resource/c91f8dbd-f0a4-4fe1-83be-935a2de908da/download/gran_centro_comercial.geojson")
+    # 1. Cargar el archivo GeoJSON original desde Datos Abiertos
+    CC <- st_read("https://datosabiertos.bogota.gov.co/dataset/ce479dd9-7d54-4400-a05d-8df538c43e29/resource/c91f8dbd-f0a4-4fe1-83be-935a2de908da/download/gran_centro_comercial.geojson")
+    
+    # 2. Definir el CRS ESRI:102771 manualmente (MAGNA-SIRGAS Cartesianas Origen Bogotá)
+    bog_crs <- "+proj=tmerc +lat_0=4.599047222222222 +lon_0=-74.08091666666666 +k=1 +x_0=100000 +y_0=100000 +ellps=GRS80 +units=m +no_defs"
+    
+    # 3. Asignar el CRS correcto al objeto (sin transformar aún)
+    st_crs(CC) <- bog_crs
+    
+    # 4. Transformar a WGS 84 (EPSG:4326) para trabajar en grados
+    CC <- st_transform(CC, 4326)
+    
+    # 5. Verificación opcional
+    print(st_crs(CC))
+    print(st_bbox(CC))  # Debe dar xmin ≈ -74.1, ymin ≈ 4.5
+    
+    # 6. Graficar con ggplot2
+    ggplot() +
+      geom_sf(data = CC, fill = "orange", color = "red", alpha = 0.6) +
+      coord_sf(lims_method = "geometry_bbox") +
+      theme_minimal() +
+      labs(title = "Centros Comerciales de Bogotá", subtitle = "Fuente: Datos Abiertos Bogotá")
 
-# 2. Definir el CRS ESRI:102771 manualmente (MAGNA-SIRGAS Cartesianas Origen Bogotá)
-bog_crs <- "+proj=tmerc +lat_0=4.599047222222222 +lon_0=-74.08091666666666 +k=1 +x_0=100000 +y_0=100000 +ellps=GRS80 +units=m +no_defs"
+# Creo grafica con troncales de transmilenio
 
-# 3. Asignar el CRS correcto al objeto (sin transformar aún)
-st_crs(CC) <- bog_crs
+tm <- st_read("https://raw.githubusercontent.com/samelomo99/PS3_SM_MB_DL/refs/heads/main/stores/Trazados_Troncales_de_TRANSMILENIO.geojson")
 
-# 4. Transformar a WGS 84 (EPSG:4326) para trabajar en grados
-CC <- st_transform(CC, 4626)
+tm <- st_transform(tm,4326)
+ggplot()+
+  geom_sf(data = tm, color = "yellow") +
+  geom_sf(data=sf_train %>% filter(property_type == c("Apartamento", "Casa")),aes(color = precio_por_mt2) ,shape=15, size=0.3) +
+  theme_bw()
 
-# 5. Verificación opcional
-print(st_crs(CC))
-print(st_bbox(CC))  # Debe dar xmin ≈ -74.1, ymin ≈ 4.5
+## Creando las variables adicionales ----------------------
+### Distancia a parque mas cercano ------------------------
+    # Extraemos la info de todos los parques de Bogotá
+    parques <- opq(bbox = getbb("Bogota Colombia")) %>%
+      add_osm_feature(key = "leisure" , value = "park") 
+    # Cambiamos el formato para que sea un objeto sf (simple features)
+    parques_sf <- osmdata_sf(parques)
+    
+    
+    # De las features del parque nos interesa su geomoetría y donde estan ubicados 
+    parques_geometria <- parques_sf$osm_polygons %>% 
+      dplyr::select(osm_id, name) 
+    
+    
+    # Guardemos los poligonos de los parques 
+    parques_geometria <- st_as_sf(parques_sf$osm_polygons)
+    
+    # Calculamos el centroide de cada parque para aproximar su ubciacion como un solo punto 
+    centroides_parques <- st_centroid(parques_geometria, byid = T)
+    
+   
+    centroides_parques <- centroides_parques %>%
+      mutate(x=st_coordinates(centroides_parques)[, "X"]) %>%
+      mutate(y=st_coordinates(centroides_parques)[, "Y"]) 
+    
+    # Creamos una grafica 
+    leaflet() %>%
+      addTiles() %>%
+      setView(lng = longitud_central, lat = latitud_central, zoom = 12) %>%
+      addPolygons(data = parques_geometria, col = "red",weight = 10,
+                  opacity = 0.8, popup = parques_geometria$name) %>%
+      addCircles(lng = centroides_parques$x, 
+                 lat = centroides_parques$y, 
+                 col = "darkblue", opacity = 0.5, radius = 1)   
+    
+    # Calculamos la distancia
+    centroides_parques_sf <- st_as_sf(centroides_parques, coords = c("x", "y"), crs=4326)
+   
+    dist_matrix_parques <- st_distance(x = sf_train, y = centroides_parques_sf)
+    dim(dist_matrix_parques)
+    
+    dist_min_parque <- apply(dist_matrix_parques, 1, min)  
+    
+    
+    # La agregamos como variable a nuestra base de datos original 
+    train <- train %>% mutate(distancia_parque = dist_min_parque)
+    
+    #Finalmente la distribucion
+    
+    p_parques <- ggplot(train, aes(x = distancia_parque)) +
+      geom_histogram(bins = 50, fill = "darkblue", alpha = 0.4) +
+      labs(x = "Distancia mínima a un parque en metros", y = "Cantidad",
+           title = "Distribución de la distancia a los parques") +
+      theme_bw()
+    ggplotly(p_parques)
 
-# 6. Graficar con ggplot2
-ggplot() +
-  geom_sf(data = CC, fill = "orange", color = "red", alpha = 0.6) +
-  coord_sf(lims_method = "geometry_bbox") +
-  theme_minimal() +
-  labs(title = "Centros Comerciales de Bogotá", subtitle = "Fuente: Datos Abiertos Bogotá")
+
+
+### Distancia a CC mas cercano --------------------------
+
+    # Asumimos que ya tienes el objeto CC cargado, transformado a EPSG:4326 y listo.
+    
+    # 1. Seleccionamos geometría y nombre del centro comercial
+    # Reemplazo de la parte que selecciona y asigna nombre si está vacío
+    CC_geometria <- CC %>%
+      mutate(name = paste("Centro Comercial", row_number())) %>%
+      dplyr::select(name)
+    
+    # 2. Calculamos los centroides de los centros comerciales
+    centroides_CC <- st_centroid(CC_geometria, byid = TRUE)
+    
+    # 3. Extraemos coordenadas para visualización
+    centroides_CC <- centroides_CC %>%
+      mutate(x = st_coordinates(centroides_CC)[, "X"],
+             y = st_coordinates(centroides_CC)[, "Y"])
+    
+    # 4. Creamos un mapa interactivo con leaflet
+    leaflet() %>%
+      addTiles() %>%
+      setView(lng = longitud_central, lat = latitud_central, zoom = 12) %>%
+      addPolygons(data = CC_geometria, col = "red", weight = 2,
+                  opacity = 0.8, popup = CC_geometria$name) %>%
+      addCircles(lng = centroides_CC$x, 
+                 lat = centroides_CC$y, 
+                 col = "darkblue", opacity = 0.5, radius = 1)
+    
+    # 5. Convertimos los centroides a sf
+    centroides_CC_sf <- st_as_sf(centroides_CC, coords = c("x", "y"), crs = 4326)
+    
+    # 6. Calculamos matriz de distancias entre viviendas y centros comerciales
+    dist_matrix_CC <- st_distance(x = sf_train, y = centroides_CC_sf)
+    dim(dist_matrix_CC)
+    
+    # 7. Extraemos la distancia mínima para cada vivienda
+    dist_min_CC <- apply(dist_matrix_CC, 1, min)
+    
+    # 8. Agregamos a la base de entrenamiento
+    train <- train %>% mutate(distancia_CC = dist_min_CC)
+    
+    # 9. Visualizamos la distribución
+    p_CC <- ggplot(train, aes(x = distancia_CC)) +
+      geom_histogram(bins = 50, fill = "darkblue", alpha = 0.4) +
+      labs(x = "Distancia mínima a un centro comercial (m)", y = "Cantidad",
+           title = "Distribución de la distancia a centros comerciales") +
+      theme_bw()
+    
+    ggplotly(p_CC)
+    
 
 
 
+### Distancia a TM ---------------------------
+
+    # 1. Seleccionar geometría y nombre de estaciones de TM
+    tm_geometria <- tm %>%
+      dplyr::select(nombre_trazado_troncal)  # Usa directamente el nombre si ya existe
+    
+    # 2. Calcular centroides de las estaciones
+    centroides_tm <- st_centroid(tm_geometria, byid = TRUE)
+    
+    # 3. Extraer coordenadas para visualización
+    centroides_tm <- centroides_tm %>%
+      mutate(x = st_coordinates(centroides_tm)[, "X"],
+             y = st_coordinates(centroides_tm)[, "Y"])
+    
+    centroides_tm <- centroides_tm %>%
+      filter(!is.na(x), !is.na(y))
+    
+    # 4. Crear el mapa interactivo
+    leaflet() %>%
+      addTiles() %>%
+      setView(lng = longitud_central, lat = latitud_central, zoom = 12) %>%
+      addPolygons(data = tm_geometria, col = "red", weight = 2,
+                  opacity = 0.8) %>%
+      addCircles(lng = centroides_tm$x,
+                 lat = centroides_tm$y,
+                 color = "darkblue", opacity = 0.5, radius = 1)
+    
+    # 5. Convertir los centroides a objeto sf
+    centroides_tm_sf <- st_as_sf(centroides_tm, coords = c("x", "y"), crs = 4326)
+    
+    # 6. Calcular matriz de distancias entre viviendas y estaciones TM
+    dist_matrix_tm <- st_distance(x = sf_train, y = centroides_tm_sf)
+    
+    # 7. Extraer la distancia mínima
+    dist_min_tm <- apply(dist_matrix_tm, 1, min)
+    
+    # 8. Agregar la variable a la base de entrenamiento
+    train <- train %>% mutate(distancia_tm = dist_min_tm)
+    
+    # 9. Visualizar la distribución
+    p_tm <- ggplot(train, aes(x = distancia_tm)) +
+      geom_histogram(bins = 50, fill = "darkblue", alpha = 0.4) +
+      labs(x = "Distancia mínima a TransMilenio (m)", y = "Cantidad",
+           title = "Distribución de la distancia a estaciones TM") +
+      theme_bw()
+    
+    ggplotly(p_tm)
+    
 
 
 
+### Distancia a Avenida principal mas cercana ----------------------
+    # 1. Seleccionamos geometría y nombre de los tramos viales
+    red_vial_geometria <- red_vial %>%
+      dplyr::select(name = NOMBRE)  # Ajusta si el nombre real de la columna es diferente
+    
+    # Si la columna `name` tiene NAs, puedes limpiar:
+    red_vial_geometria <- red_vial_geometria %>%
+      mutate(name = ifelse(is.na(name), "Sin nombre", name))
+    
+    # 2. Calculamos los centroides de cada tramo vial
+    library(sf)
+    
+    # Reparar geometrías defectuosas
+    red_vial_geometria <- st_make_valid(red_vial_geometria)
+    
+    centroides_red_vial <- st_centroid(red_vial_geometria, byid = TRUE)
+    
+    # 3. Extraemos coordenadas
+    centroides_red_vial <- centroides_red_vial %>%
+      mutate(x = st_coordinates(centroides_red_vial)[, "X"],
+             y = st_coordinates(centroides_red_vial)[, "Y"])
+    
+    # 4. Crear el mapa interactivo
+    leaflet() %>%
+      addTiles() %>%
+      setView(lng = longitud_central, lat = latitud_central, zoom = 12) %>%
+      addPolylines(data = red_vial_geometria, color = "red", weight = 2,
+                   opacity = 0.8, popup = red_vial_geometria$name) %>%
+      addCircles(lng = centroides_red_vial$x,
+                 lat = centroides_red_vial$y,
+                 color = "darkblue", opacity = 0.5, radius = 1)
+    
+    # 5. Convertimos a sf con geometría
+    centroides_red_vial_sf <- st_as_sf(centroides_red_vial, coords = c("x", "y"), crs = 4326)
+    
+    # 6. Calculamos la matriz de distancias entre viviendas y red vial
+    dist_matrix_red_vial <- st_distance(x = sf_train, y = centroides_red_vial_sf)
+    
+    # 7. Distancia mínima
+    dist_min_red_vial <- apply(dist_matrix_red_vial, 1, min)
+    
+    # 8. Agregar al dataset original
+    train <- train %>% mutate(distancia_red_vial = dist_min_red_vial)
+    
+    # 9. Visualización
+    p_red_vial <- ggplot(train, aes(x = distancia_red_vial)) +
+      geom_histogram(bins = 50, fill = "darkblue", alpha = 0.4) +
+      labs(x = "Distancia mínima a red vial (m)", y = "Cantidad",
+           title = "Distribución de la distancia a tramos de la red vial") +
+      theme_bw()
+    
+    ggplotly(p_red_vial)
+    
+### Distancia a red vial minima version 2.0 ---------
+    # 1. Consultar avenidas de Bogotá desde OSM
+    AV <- opq(bbox = getbb("Bogota Colombia")) %>%
+      add_osm_feature(key = "highway", value = c("trunk", "primary"))
+    
+    # 2. Convertir a sf
+    AV_sf <- osmdata_sf(AV)
+    
+    # 3. Extraer líneas de la red vial (evita polígonos, puntos, etc.)
+    AV_lineas <- AV_sf$osm_lines  # Este es el que contiene las LINESTRING
+    
+    # 4. Asegúrate de que todo esté en EPSG:4326
+    AV_lineas <- st_transform(AV_lineas, 4326)
+    
+    leaflet() %>%
+      addTiles() %>%
+      addPolylines(data = AV_lineas, color = "red", weight = 2, opacity = 0.7) %>%
+      addCircles(data = sf_train, color = "blue", radius = 1, opacity = 0.5)
+    
+    
+    # 5. Calcular distancia directa a los segmentos más cercanos
+    dist_matrix_AV <- st_distance(x = sf_train, y = AV_lineas)
+    
+    # 6. Extraer distancia mínima por vivienda
+    dist_min_AV <- apply(dist_matrix_AV, 1, min)
+    
+    # 7. Agregar a la base
+    train <- train %>% mutate(distancia_avenida = dist_min_AV)
+    
+    # 8. Visualizar
+    p_avenida <- ggplot(train, aes(x = distancia_avenida)) +
+      geom_histogram(bins = 50, fill = "darkgreen", alpha = 0.5) +
+      labs(x = "Distancia mínima a avenidas (trunk/primary)", y = "Cantidad",
+           title = "Distribución de la distancia a avenidas principales") +
+      theme_minimal()
+    
+    ggplotly(p_avenida)
 
-
-
+    
 ## --- Ahora con las variables test --------
 skim(test_basica)
 #y graficamente 
@@ -315,7 +583,7 @@ skim(test)
 # volviendo a revisar graficamente 
 vis_dat(test)
 
-# ------- Agregamos las nuevas variables --------------#
+
 
 
 
