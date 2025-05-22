@@ -890,6 +890,96 @@ p_avenida_test <- ggplot(test, aes(x = distancia_avenida)) +
 
 ggplotly(p_avenida_test)
 
+
+
+#----- Crear variables a partir de texto: Test--------------------
+
+nuevo_df_test <- select(train, property_id, description)
+
+#Definir la función de limpieza
+limpiar_texto <- function(texto) {
+  if (is.na(texto)) return(texto)                      # conserva NA
+  str_replace_all(texto, "[^[:alnum:]\\s]", "")        # elimina todo salvo letras, números y espacios
+}
+
+#Aplicar la función y crear la nueva columna
+nuevo_df_test <- nuevo_df_test %>% 
+  mutate(
+    description_limpia = map_chr(description, limpiar_texto)  # devuelve vector tipo character
+  )
+
+p_load(udpipe)                       # instala y carga 'udpipe' si falta
+
+#Descargar y cargar el modelo español (una sola vez)
+modelo_info <- udpipe_download_model(language = "spanish")
+nlp <- udpipe_load_model(modelo_info$file_model)
+
+# Función: tokenizar + lematizar + quitar stop-words
+tokenizar_lemmatizar <- function(texto, modelo) {
+  # Devuelve character(0) si el texto es NA o vacío
+  if (is.na(texto) || str_trim(texto) == "") return(character(0))
+  
+  # Anotar con udpipe
+  anno <- udpipe_annotate(modelo, x = texto)
+  tokens <- as.data.frame(anno)
+  
+  # Lista de stop-words en español
+  sw <- stopwords::stopwords("es")
+  
+  # Filtrar: sin puntuación ni espacios, quitar stop-words
+  lemmas <- tokens$lemma[
+    tokens$upos != "PUNCT" &
+      !(tolower(tokens$lemma) %in% sw)
+  ]
+  lemmas <- lemmas[lemmas != ""]
+  lemmas
+}
+
+# Crear la nueva columna list-column `lemmas`
+nuevo_df_test <- nuevo_df_test %>%
+  mutate(
+    lemmas = map(description_limpia, ~ tokenizar_lemmatizar(.x, nlp))
+  )
+
+#Crear la nueva columna `parqueadero`, 'deposito', 'ascensor'
+
+palabras_clave <- c("parqueadero", "garaje")
+nuevo_df_test$parquedero <- vapply(
+  nuevo_df_test$lemmas,
+  function(x) as.integer(any(x %in% palabras_clave)),
+  FUN.VALUE = integer(1)
+)
+
+palabras_deposito <- c("deposito", "depósito")
+
+nuevo_df_test$deposito <- vapply(
+  nuevo_df_test$lemmas,
+  function(x) as.integer(any(x %in% palabras_deposito)),
+  FUN.VALUE = integer(1)
+)
+
+palabras_deposito <- c("deposito", "depósito")
+
+nuevo_df_test$deposito <- vapply(
+  nuevo_df_test$lemmas,
+  function(x) as.integer(any(x %in% palabras_deposito)),
+  FUN.VALUE = integer(1)
+)
+
+palabras_ascensor <- "ascensor"
+
+nuevo_df_test$ascensor <- vapply(
+  nuevo_df_test$lemmas,
+  function(x) as.integer(any(x %in% palabras_ascensor)),
+  FUN.VALUE = integer(1)
+)
+
+nuevo_df_test <- nuevo_df_test %>%
+  select(property_id, description_limpia, lemmas, parquedero, deposito, ascensor)
+test <- test %>%
+  left_join(nuevo_df_test, by = "property_id")
+
+
 # Finalmente guardamos la base de datos en formato CSV para poderla usar al final cuando la necesitemos 
 
 write.csv(test, file = "/Users/miguelblanco/Library/CloudStorage/OneDrive-Personal/Materias Uniandes/2025 10/Big Data y Maching Learning para Economia Aplicada/Nueva carpeta/PS3_SM_MB_DL/Stores/testfull.csv", row.names = FALSE)
