@@ -6,63 +6,72 @@
 
 # ---------- LIBRERÍAS -------------
 
+if (!requireNamespace("recipes", quietly = TRUE)) {
+  install.packages("recipes")
+}
+library(recipes)
+
 if (!require("pacman")) install.packages("pacman")
 library(pacman)
 
 pacman::p_load(
-  readr,        # Importar datos (ya incluido en tidyverse)
+  readr,        # Importar datos
   labelled,     # Manejo de etiquetas
   naniar,       # Visualizar datos faltantes
   DataExplorer, # Gráficos de missing values
   psych,        # Estadísticas descriptivas
   rvest,        # Web scraping
   rio,          # Importar/exportar datos
-  tidyverse,    # Conjunto de paquetes para tidy data (incluye dplyr, ggplot2, etc.)
+  tidyverse,    # Conjunto de paquetes tidy data
   skimr,        # Resumen de datos
   visdat,       # Visualizar datos faltantes
   corrplot,     # Gráficos de correlación
   gridExtra,    # Organización de gráficos
   MASS,         # Funciones estadísticas diversas
   stargazer,    # Tablas para salida a TEX
-  chromote,     # Automatización de navegador (útil para scraping avanzado)
-  ggplot2,      # Gráficos (ya incluido en tidyverse)
+  chromote,     # Automatización de navegador
+  ggplot2,      # Gráficos
   boot,         # Funciones de bootstrap
   patchwork,    # Combinación de gráficos
-  caret,         # For predictive model assessment
-  purrr,
-  kableExtra,   # Opciones adicionales para kable()
-  dplyr,          # Manipulación de datos
-  summarytools,
-  knitr,          # kable() para generar tablas en LaTeX
-  xtable,
-  tidyr,
-  gmodels,
-  glmnet,
-  ranger, # Para bagging y random forest
-  randomForest, # Para random forest
-  tidyverse, # tidy-data
-  caret ,  # for model training and tunning
-  Metrics, ## Evaluation Metrics for ML
-  adabag,
-  rsample,#para remuestreos y dividir la muestra
-  rpart, 
-  rpart.plot, 
-  ipred,
-  gbm,
-  visdat,
-  stringi, # Manipular cadenas de texto
-  sf, # Leer/escribir/manipular datos espaciales
-  tidymodels,  # entrenamiento de modelos
-  spatialsample, # Muestreo espacial para modelos de aprendizaje automático
-  plotly, # Gráficos interactivos
-  leaflet, # Mapas interactivos
-  tmaptools, # geocode_OSM()
-  osmdata, # Get OSM's data
-  tm,   # para Text Mining
-  tidytext, #Para tokenización
-  stopwords,  # consultar stopwords
-  tidymodels, # modelos de machine learning
-  )
+  caret,        # Evaluación de modelos
+  purrr,        # Funciones map_*
+  kableExtra,   # Opciones de tablas
+  dplyr,        # Manipulación de datos
+  summarytools, # Descriptivos enriquecidos
+  knitr,        # kable en LaTeX
+  xtable,       # Tablas en LaTeX
+  tidyr,        # Separar/unir columnas
+  gmodels,      # CrossTable y más
+  glmnet,       # Regularización Lasso/Ridge
+  ranger,       # Random Forest rápido
+  randomForest, # Random Forest clásico
+  Metrics,      # Métricas de evaluación
+  adabag,       # Bagging y boosting
+  rsample,      # Remuestreo
+  rpart,        # Árboles de decisión
+  rpart.plot,   # Gráficos para árboles
+  ipred,        # Modelos ensamblados
+  gbm,          # Boosting
+  stringi,      # Manipulación de texto
+  sf,           # Datos espaciales
+  tidymodels,   # Framework de modelado
+  spatialsample,# Muestreo espacial
+  plotly,       # Gráficos interactivos
+  leaflet,      # Mapas interactivos
+  tmaptools,    # Herramientas espaciales
+  osmdata,      # Datos OpenStreetMap
+  tm,           # Text Mining
+  tidytext,     # Procesamiento de texto
+  stopwords,    # Stopwords multilingües
+  parsnip,      # Especificación de modelos
+  dials,        # Hiperparámetros
+  workflows,    # Pipelines
+  tune,         # Tuning de modelos
+  yardstick,    # Métricas
+  udpipe,       # Procesamiento NLP
+  stringr,      # Manipulación de cadenas
+  nnet          # Redes neuronales simples
+)
 
 
 
