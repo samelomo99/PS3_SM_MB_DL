@@ -1394,6 +1394,140 @@ names(submission) <- c("property_id", "price")
 # Guardar archivo final-revisar la ruta (pendiente!)
 write.csv(submission, "D:/OneDrive - CGIAR/Pictures/Diplomado_BigData/Problem_set/ProblemSet3/Elastic_net.csv", row.names = FALSE)
 
+#----- Redes neuronales--------------------
+
+
+formula <- as.formula(
+  paste("price ~ distancia_parque + distancia_CC + distancia_tm + 
+  distancia_avenida + ascensor + parquedero + rooms + deposito + bedrooms + bathrooms + surface_total + property_type"
+  )
+)
+
+
+recipe_nnet <- recipes::recipe(
+  formula  , data = train_split) %>%
+  step_novel(all_nominal_predictors()) %>%   # para las clases no antes vistas en el train. 
+  step_dummy(all_nominal_predictors()) %>%  # crea dummies para las variables categóricas
+  step_zv(all_predictors()) %>%   #  elimina predictores con varianza cero (constantes)
+  step_normalize(all_predictors())  # normaliza los predictores. 
+
+#Primera Aproximación
+
+nnet_base <- 
+  parsnip::mlp(
+    hidden_units = 6,
+    epochs = 100,
+    engine = 'nnet' # valor por defecto
+  ) %>% 
+  parsnip::set_mode("regression") %>% 
+  parsnip::set_engine("nnet")
+nnet_base
+
+#Flujo de trabajo
+
+workflow_base <- workflow() %>% 
+  add_recipe(recipe_nnet) %>%
+  add_model(nnet_base) 
+
+#entrenemos el modelo
+
+base_final_fit <- fit(workflow_base, data = train_split)
+
+#calcular el desempeño fuera de muestra usando nuestra base de datos test:
+
+broom::augment(base_final_fit, new_data = test_split) %>%
+  mae(truth = price, estimate = .pred)
+
+
+## Selección de hiperparámetros: definir validación cruzada tradicional 
+
+# Creamos folds de validación cruzada tradicional
+set.seed(86936)
+cv_folds <- vfold_cv(train_split, v = 5)
+
+# Visualizamos la estructura de los folds
+cv_folds
+
+#definir grilla y hacer el ejercicio de validación cruzada para nuevo flujo de trabajo:
+
+nnet_tune <- 
+  parsnip::mlp(hidden_units =tune(), epochs = tune()) %>% 
+  parsnip::set_mode("regression") %>% 
+  parsnip::set_engine("nnet", trace = 0) #trace 0 previene la verbosidad del entrenamiento
+
+#Definir la grilla de parámetros que vamos a usar en el ejercicio de validación cruzada:
+
+grid_values <- tidyr::crossing(
+  # `crossing` nos permite generar una grilla 
+  # rectangular con la combinación de todos los hiperparámetros. 
+  hidden_units = seq(from= 5, to=60, by = 5),
+  epochs =  seq(from= 300, to=500, by = 100)
+)
+#Especificar nuevo flujo de trabajo
+
+workflow_tune <- workflow() %>% 
+  add_recipe(recipe_nnet) %>%
+  add_model(nnet_tune) 
+
+#realizar la validación cruzada
+
+set.seed(86936)
+
+tune_nnet <- tune_grid(
+  workflow_tune,         # El flujo de trabajo que contiene: receta y especificación del modelo
+  resamples = cv_folds,  # Folds de validación cruzada espacial
+  grid = grid_values,        # Grilla de valores 
+  metrics = metric_set(mae)  # métrica
+)
+
+#mejores métricas utilizando select_best()
+
+best_tune_nnet <- select_best(tune_nnet, metric = "mae")
+best_tune_nnet
+
+# Finalizar el flujo de trabajo 'workflow' con el mejor valor de parámetros
+nnet_tuned_final <- finalize_workflow(workflow_tune, best_tune_nnet)
+
+nnet_tuned_final_fit <- fit(nnet_tuned_final, data = train_split)
+
+#evaluar su desempeño
+
+## predicciones finales 
+mae<- augment(nnet_tuned_final_fit, new_data = test_split) %>%
+  mae(truth = price, estimate = .pred) 
+mae[1,3]
+
+
+###Entrenar con TODO train, predecir en test
+
+# Reutilizar la receta pero ajustada a toda la data
+recipe_final <- recipe(formula, data = train) %>%
+  step_novel(all_nominal_predictors()) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  step_zv(all_predictors()) %>%
+  step_normalize(all_predictors())
+
+# Flujo con todo el train
+workflow_final <- workflow() %>%
+  add_recipe(recipe_final) %>%
+  add_model(finalize_model(nnet_tune, best_tune_nnet))  # Usa los mejores hiperparámetros
+
+# Entrenar con todo el train
+fit_final <- fit(workflow_final, data = train)
+
+# Predecir sobre test (sin price si está presente)
+test_input <- test %>% select(-price)  # O ignora esta línea si no tiene price
+
+predicciones <- predict(fit_final, new_data = test_input)
+
+# Resultado final para Kaggle
+resultado_NN_kaggle <- tibble(
+  property_id = test$property_id,
+  price = predicciones$.pred
+)
+
+# Exportar CSV
+write.csv(resultado_NN_kaggle, "red_neuronal.csv", row.names = FALSE)
 
 #Deberiamos borrar este elastic net----
 ## ---------- ELASTIC NET  
