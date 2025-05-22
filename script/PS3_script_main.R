@@ -1074,6 +1074,150 @@ head(predicciones_LM)
 # Guardamos el resultado en formato CSV para Kaggle
 write.csv(predictSampleOLS, "/Users/miguelblanco/Library/CloudStorage/OneDrive-Personal/Materias Uniandes/2025 10/Big Data y Maching Learning para Economia Aplicada/Nueva carpeta/PS3_SM_MB_DL/stores/OLS.csv", row.names = FALSE)
 
+
+#----- Elastic net--------------------
+
+# Preprocesamiento & Feature Engineering
+
+# Primera receta
+rec_1_EN <- recipe(price ~ distancia_parque + distancia_CC + distancia_tm + 
+                     distancia_avenida + rooms + bathrooms + surface_total + property_type, 
+                   data = train_split) %>%
+  step_interact(terms = ~ distancia_parque:property_type +
+                  distancia_CC:property_type +
+                  distancia_tm:property_type +
+                  distancia_avenida:property_type +
+                  surface_total:property_type) %>%
+  step_novel(all_nominal_predictors()) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  step_zv(all_predictors()) %>%
+  step_normalize(all_predictors())
+
+# Segunda receta 
+rec_2_EN <- recipe(price ~ distancia_parque + distancia_CC + distancia_tm + 
+                     distancia_avenida + rooms + bathrooms + surface_total + property_type, 
+                   data = train_split) %>%
+  step_interact(terms = ~ distancia_parque:property_type +
+                  distancia_CC:property_type +
+                  distancia_tm:property_type +
+                  distancia_avenida:property_type +
+                  surface_total:property_type) %>%
+  step_poly(distancia_parque, degree = 2) %>%
+  step_poly(distancia_CC, degree = 2) %>%
+  step_poly(distancia_tm, degree = 2) %>%
+  step_poly(distancia_avenida, degree = 2) %>%
+  step_novel(all_nominal_predictors()) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  step_zv(all_predictors()) %>%
+  step_normalize(all_predictors())
+
+# Elastic-Net 
+
+elastic_net_spec <- parsnip::linear_reg(
+  penalty = tune(), 
+  mixture = tune()) %>%
+  set_engine("glmnet")
+
+grid_values_EN <- grid_regular(penalty(range = c(-2,1)), levels = 50) %>%
+  expand_grid(mixture = c(0, 0.25,  0.5, 0.75,  1))
+
+set.seed(86936)
+db_fold_EN <- rsample::vfold_cv(train_split, v = 5) 
+
+
+# Iniciar un flujo de trabajo utilizando 'workflow()'
+workflow_1_EN <- workflow() %>% 
+  add_recipe(rec_1_EN) %>% 
+  add_model(elastic_net_spec)
+
+## Lo mismo con la receta rec_2 
+workflow_2_EN <- workflow() %>%
+  add_recipe(rec_2_EN) %>%
+  add_model(elastic_net_spec)
+
+#Fit y predict 
+
+set.seed(86936)
+
+tune_res1_EN  <- tune::tune_grid(
+  workflow_1_EN,         # El flujo de trabajo que contiene: receta y especificación del modelo
+  resamples = db_fold_EN,  # Folds de validación cruzada
+  grid = grid_values_EN,        # Grilla de valores de penalización
+  metrics = metric_set(rmse)  # metrica
+)
+
+
+#los resultados:
+
+workflowsets::collect_metrics(tune_res1_EN)  
+
+set.seed(86936)
+
+tune_res2_EN <- tune_grid(
+  workflow_2_EN,         # El flujo de trabajo que contiene: receta y especificación del modelo
+  resamples = db_fold_EN,  # Folds de validación cruzada
+  grid = grid_values_EN,        # Grilla de valores de penalización
+  metrics = metric_set(rmse)  # metrica
+)
+
+collect_metrics(tune_res2_EN)
+
+
+best_penalty_1_EN <- select_best(tune_res1_EN, metric = "rmse")
+best_penalty_1_EN
+
+best_penalty_2_EN <- select_best(tune_res2_EN, metric = "rmse")
+best_penalty_2_EN
+
+EN_final1 <- finalize_workflow(workflow_1_EN, best_penalty_1_EN)
+EN_final2 <- finalize_workflow(workflow_2_EN, best_penalty_2_EN)
+
+EN_final1_fit <- fit(EN_final1, data = train_split)
+EN_final2_fit <- fit(EN_final2, data = train_split)
+
+# Sacamos las predicciones sobre los datos de test 
+predictiones_1_EN <- predict(EN_final1_fit , new_data = test_split)
+predictiones_2_EN <- predict(EN_final2_fit , new_data = test_split)
+
+#Evaluación del Modelo (aunque esto es adicional porque es lo que hace kaggle)
+
+# Calculamos el MAE de las predicciones 
+rmse_1_EN <- test_split %>%
+  bind_cols(predictiones_1_EN) %>%
+  yardstick::rmse(truth = price, estimate = .pred)
+
+rmse_2_EN <- test_split %>%
+  bind_cols(predictiones_2_EN) %>%
+  yardstick::rmse(truth = price, estimate = .pred)
+
+
+# Resultados finales Elastic Net
+resultados_EN <- c(rmse_1_EN[[".estimate"]], rmse_2_EN[[".estimate"]])
+resultados_EN
+
+#Modelo final Elastic net con todos los datos 
+EN_final_Kaggle <- finalize_workflow(workflow_2_EN, best_penalty_2_EN)
+EN_fit_Kaggle <- fit(EN_final_Kaggle, data = train)
+
+EN_final_predictions_Kaggle  <- predict(EN_fit_Kaggle, new_data = test)
+
+# Crear dataframe con property_id + predicción
+submission <- test %>%
+  select(property_id) %>%               # selecciona solo el ID
+  bind_cols(EN_final_predictions_Kaggle)  # une con predicciones
+
+# Renombra columnas según lo que espera Kaggle
+names(submission) <- c("property_id", "price")
+
+# Guardar archivo final
+
+
+
+
+
+
+
+#Deberiamos borrar este elastic net----
 ## ---------- ELASTIC NET  ----
 set.seed(1410)
 
@@ -1151,6 +1295,8 @@ name<- paste0(
   ".csv") 
 
 write.csv(predictSample_en, name, row.names = FALSE)
+
+###FIN ELASCTIC NET QUE DEBERIAMOS BORRAR
 
 ## ARBOLES ----------
 
