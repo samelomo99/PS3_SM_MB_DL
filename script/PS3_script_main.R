@@ -1209,7 +1209,7 @@ submission <- test %>%
 # Renombra columnas según lo que espera Kaggle
 names(submission) <- c("property_id", "price")
 
-# Guardar archivo final
+# Guardar archivo final-revisar la ruta (pendiente!)
 write.csv(submission, "D:/OneDrive - CGIAR/Pictures/Diplomado_BigData/Problem_set/ProblemSet3/Elastic_net.csv", row.names = FALSE)
 
 
