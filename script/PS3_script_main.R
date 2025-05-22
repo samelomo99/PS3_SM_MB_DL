@@ -1210,15 +1210,11 @@ submission <- test %>%
 names(submission) <- c("property_id", "price")
 
 # Guardar archivo final
-
-
-
-
-
+write.csv(submission, "D:/OneDrive - CGIAR/Pictures/Diplomado_BigData/Problem_set/ProblemSet3/Elastic_net.csv", row.names = FALSE)
 
 
 #Deberiamos borrar este elastic net----
-## ---------- ELASTIC NET  ----
+## ---------- ELASTIC NET  
 set.seed(1410)
 
 # Grilla para glmnet
