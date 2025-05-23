@@ -1043,10 +1043,6 @@ write.csv(submission_rf, "C:/Users/samel/OneDrive/Datos adjuntos/Universidad de 
 # Eliminar filas con NA en train (en X y en y)
 train <- train %>% drop_na()
 
-# No quitamos NAs en test porque normalmente el test no debería tener, 
-# pero si quieres hacerlo, puedes descomentar la siguiente línea:
-test <- test %>% drop_na()
-
 # 3. Separar variables predictoras y respuesta
 y_full <- train$price
 x_full <- train %>% select(-price, -property_id)
@@ -1082,15 +1078,14 @@ sl_fit_kaggle <- SuperLearner(
   method = "method.NNLS"
 )
 
-
 # 8. Predecir en test usando solo las columnas que quedaron en x_full
 pred_kaggle <- predict(sl_fit_kaggle, newdata = test %>% select(names(x_full)))$pred
 
 # 9. Crear archivo submission
 submission_sl <- test %>%
   select(property_id) %>%
-  mutate(price = as.numeric(pred_kaggle))
+  mutate("price" = as.numeric(pred_kaggle))
 
 
 # 10. Guardar CSV para Kaggle
-write_csv(submission_sl, "C:/Users/samel/OneDrive/Datos adjuntos/Universidad de los Andes/IV/Big Data - Machine Learning/GitHub/PS3_SM_MB_DL/stores/submission_superlearner.csv", row.names = FALSE)
+write_csv(submission_sl, "C:/Users/samel/OneDrive/Datos adjuntos/Universidad de los Andes/IV/Big Data - Machine Learning/GitHub/PS3_SM_MB_DL/stores/submission_superlearner_2.csv")
