@@ -792,13 +792,13 @@ rf_spec <- rand_forest(
   set_engine("ranger", splitrule = "variance") %>%
   set_mode("regression")
 
-# 2. Crear la grilla de hiperparámetros con expand.grid()
+# 2. Crear la grilla de hiperparámetros con expand.grid() ----
 mtry_grid <- expand.grid(
   mtry = c(2, 4, 6, 8),
   min_n = c(1, 5, 10, 20, 35, 50)  # este es el nombre correcto
 )
 
-# 3. Crear workflows (puedes reutilizar rec_1_EN y rec_2_EN que ya hiciste)
+# 3. Crear workflows ----
 workflow_1_RF <- workflow() %>%
   add_recipe(rec_1_RF) %>%
   add_model(rf_spec)
@@ -807,7 +807,7 @@ workflow_2_RF <- workflow() %>%
   add_recipe(rec_2_RF) %>%
   add_model(rf_spec)
 
-# 4. Tuning con validación cruzada
+# 4. Tuning con validación cruzada ----
 set.seed(86936)
 db_fold_EN <- vfold_cv(train_split, v = 5)
 
@@ -828,30 +828,30 @@ tune_res2_RF <- tune_grid(
 stopCluster(cl)
 registerDoSEQ()
 
-# 5. Elegir los mejores hiperparámetros
+# 5. Elegir los mejores hiperparámetros ----
 best_rf_1 <- select_best(tune_res1_RF, metric = "rmse")
 best_rf_2 <- select_best(tune_res2_RF, metric = "rmse")
 
-# 6. Finalizar workflows
+# 6. Finalizar workflows ----
 final_rf_1 <- finalize_workflow(workflow_1_RF, best_rf_1)
 final_rf_2 <- finalize_workflow(workflow_2_RF, best_rf_2)
 
-# 7. Ajustar sobre datos de entrenamiento
+# 7. Ajustar sobre datos de entrenamiento ----
 fit_rf_1 <- fit(final_rf_1, data = train_split)
 fit_rf_2 <- fit(final_rf_2, data = train_split)
 
-# 8. Predecir sobre test_split y calcular RMSE
+# 8. Predecir sobre test_split y calcular RMSE ----
 pred_rf_1 <- predict(fit_rf_1, new_data = test_split)
 pred_rf_2 <- predict(fit_rf_2, new_data = test_split)
 
 rmse_rf_1 <- rmse(bind_cols(test_split, pred_rf_1), truth = price, estimate = .pred)
 rmse_rf_2 <- rmse(bind_cols(test_split, pred_rf_2), truth = price, estimate = .pred)
 
-# 9. Entrenamiento final para Kaggle
+# 9. Entrenamiento final para Kaggle ----
 final_rf_kaggle <- finalize_workflow(workflow_2_RF, best_rf_2)  # Asumiendo que rec_2 fue mejor
 fit_rf_kaggle <- fit(final_rf_kaggle, data = train)
 
-# Predicciones sobre test
+# Predicciones sobre test ----
 pred_rf_kaggle <- predict(fit_rf_kaggle, new_data = test)
 
 # Crear submission
