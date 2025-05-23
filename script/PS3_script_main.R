@@ -70,11 +70,9 @@ pacman::p_load(
   yardstick,    # Métricas
   udpipe,       # Procesamiento NLP
   stringr,      # Manipulación de cadenas
-  nnet          # Redes neuronales simples
+  nnet,         # Redes neuronales simples
+  SuperLearner
 )
-
-
-
 
 # ---------- BASE DE DATOS --------------
 train_basica <- read_csv(
@@ -987,10 +985,42 @@ test <- test %>%
 write.csv(test, file = "/Users/miguelblanco/Library/CloudStorage/OneDrive-Personal/Materias Uniandes/2025 10/Big Data y Maching Learning para Economia Aplicada/Nueva carpeta/PS3_SM_MB_DL/Stores/testfull.csv", row.names = FALSE)
 
 
+
+# BORRAR DE AQUI HACÍA ATRÁS EXCEPTO LIBRERÍAS ### ----
+
+# LLAMAR BASE DE DATOS # ---- 
 ## --- Creacion de las particiones de datos para probar -------- 
 #LLamamos la base desde GitHub, para no correr todo 
 train <- read.csv("https://raw.githubusercontent.com/samelomo99/PS3_SM_MB_DL/refs/heads/main/stores/trainfull.csv")
 test <- read.csv("https://raw.githubusercontent.com/samelomo99/PS3_SM_MB_DL/refs/heads/main/stores/testfull.csv")
+
+# Variables en train (sin 'price' porque solo está en train)
+vars_train <- setdiff(names(train), "price")
+
+# Variables en test
+vars_test <- names(test)
+
+# Variables comunes
+vars_comunes <- intersect(vars_train, vars_test)
+
+# Variables que están en train pero no en test
+vars_train_solo <- setdiff(vars_train, vars_test)
+
+# Variables que están en test pero no en train
+vars_test_solo <- setdiff(vars_test, vars_train)
+
+# Mostrar resultados
+list(
+  comunes = vars_comunes,
+  solo_en_train = vars_train_solo,
+  solo_en_test = vars_test_solo
+)
+
+train <- train %>% select(-precio_por_mt2_sc)
+train <- train %>% select(-distancia_red_vial)
+train <- train %>% select(-precio_por_mt2)
+test <- test %>% select(-price)
+test <- test %>% select(-precio_por_mt2)
 
 # Creamos índices para dividir 
 index <- createDataPartition(train$price, p = 0.7, list = FALSE)
@@ -999,11 +1029,10 @@ train_split <- train[index, ]  #Con esta se hace la estimación
 test_split  <- train[-index, ] #Con esta se hace la prueba del MAE
 
 
+#----- MODELOS ----
 
-
-#----- MODELOS --------------------
-
-## ---------- OLS ----------------------
+## OLS ----
+  # Con train_split y test_split ----
 # Montamos la validación cruzada
 LM_spec <- linear_reg() %>% #tune es para que escoga optimamente 
   set_engine("glm")
@@ -1128,9 +1157,7 @@ MAE_2_LM <- augment(EN_final2_fit_LM, new_data = test_split) %>%
 nMAE2_LM<- MAE_2_LM/mean(train_split$price)*100 %>% round(.,2)
 nMAE2_LM
 # Ahora ya con los datos reales para presentar 
-# ========================
-# Con todos los datos 
-# ========================
+  # Con todos los datos (train y test) ----
 
 # Primera receta (recuerde poner los pasos en orden para el sistema le modele corectamente)
 rec_1_LM <- recipe(price ~ bedrooms + bathrooms + property_type + distancia_parque + distancia_CC + distancia_tm + distancia_avenida , data = train) %>%
@@ -1259,7 +1286,7 @@ head(predicciones_LM)
 write.csv(predictSampleOLS, "/Users/miguelblanco/Library/CloudStorage/OneDrive-Personal/Materias Uniandes/2025 10/Big Data y Maching Learning para Economia Aplicada/Nueva carpeta/PS3_SM_MB_DL/stores/OLS.csv", row.names = FALSE)
 
 
-##----- Elastic net--------------------
+## Elastic Net ----
 
 # Preprocesamiento & Feature Engineering
 
@@ -1396,7 +1423,7 @@ names(submission) <- c("property_id", "price")
 # Guardar archivo final-revisar la ruta (pendiente!)
 write.csv(submission, "D:/OneDrive - CGIAR/Pictures/Diplomado_BigData/Problem_set/ProblemSet3/Elastic_net.csv", row.names = FALSE)
 
-##----- Redes neuronales--------------------
+## Redes neuronales ----
 
 
 formula <- as.formula(
@@ -1531,9 +1558,8 @@ resultado_NN_kaggle <- tibble(
 # Exportar CSV
 write.csv(resultado_NN_kaggle, "red_neuronal.csv", row.names = FALSE)
 
-## ARBOLES ----------
-
-#### Version 1 ----------------------
+## ARBOLES ----
+  # Version 1 ----
 
 complex_tree_1 <- rpart(price ~ lat + lon + bedrooms + year + month, 
                         data = train_split,
@@ -1582,7 +1608,7 @@ head(predictSample_CART)
 name <- "CART_alpha0.csv"
 write.csv(predictSample_CART, name, row.names = FALSE)
 
-#### Version 2 ------------------------------------
+  # Version 2 ----
 
 
 # Especificación del modelo CART
@@ -1680,7 +1706,6 @@ nMAE2_CART
 
 
 ## BOOSTING ----
-
 # Formando los evaluadores
   fiveStats <- function(...) {
   c(
@@ -1696,7 +1721,7 @@ ctrl<- trainControl(method = "cv",
                     savePredictions = TRUE)
 
 
-### Modelo Gradient Boosting ----
+  # Modelo Gradient Boosting ----
 
 grid_gbm <- expand.grid(n.trees = c(50, 100, 150),
                         interaction.depth = c(1, 2),
@@ -1720,7 +1745,7 @@ predictSample_gbm <- test_split %>%
 head(predictSample_gbm)
 
 
-### Modelo XGBoost ----
+  # Modelo XGBoost ----
 
 p_load(xgboost)
 
@@ -1775,3 +1800,194 @@ write.csv(predictSample_Xgboost, name, row.names = FALSE)
 
 
 
+
+## Random Forest
+## RANDOM FOREST ----
+  # Con train_split y test_split ----
+# Recetas
+# Primera receta
+
+rec_1_RF <- recipe(price ~ distancia_parque + distancia_CC + distancia_tm + 
+                     distancia_avenida + rooms + bathrooms + surface_total + property_type, 
+                   data = train_split) %>%
+  step_novel(all_nominal_predictors()) %>%
+  step_dummy(all_nominal_predictors()) %>%  # Primero dummies
+  step_interact(terms = ~ starts_with("property_type"):all_numeric_predictors()) %>%  # Luego interacciones
+  step_zv(all_predictors()) %>%
+  step_normalize(all_predictors())
+
+# Segunda receta
+rec_2_RF <- recipe(price ~ distancia_parque + distancia_CC + distancia_tm + 
+                     distancia_avenida + rooms + bathrooms + surface_total + property_type, 
+                   data = train_split) %>%
+  step_novel(all_nominal_predictors()) %>%
+  step_dummy(all_nominal_predictors()) %>%  # Primero dummies
+  step_poly(distancia_parque, degree = 2) %>%
+  step_poly(distancia_CC, degree = 2) %>%
+  step_poly(distancia_tm, degree = 2) %>%
+  step_poly(distancia_avenida, degree = 2) %>%
+  step_interact(terms = ~ starts_with("property_type"):all_numeric_predictors()) %>%  # Luego interacciones
+  step_zv(all_predictors()) %>%
+  step_normalize(all_predictors())
+
+# Probamos parallel para optimizar
+library(doParallel)
+cores <- parallel::detectCores()
+cl <- makePSOCKcluster(cores - 1)
+registerDoParallel(cl)
+
+# 1. Definir la especificación del modelo con 'ranger' para regresión
+rf_spec <- rand_forest(
+  mtry = tune(),
+  min_n = tune(),     # <- coincide con el nombre en la grilla
+  trees = 1000
+) %>%
+  set_engine("ranger", splitrule = "variance") %>%
+  set_mode("regression")
+
+# 2. Crear la grilla de hiperparámetros con expand.grid()
+mtry_grid <- expand.grid(
+  mtry = c(2, 4, 6, 8),
+  min_n = c(1, 5, 10, 20, 35, 50)  # este es el nombre correcto
+)
+
+# 3. Crear workflows
+workflow_1_RF <- workflow() %>%
+  add_recipe(rec_1_RF) %>%
+  add_model(rf_spec)
+
+workflow_2_RF <- workflow() %>%
+  add_recipe(rec_2_RF) %>%
+  add_model(rf_spec)
+
+# 4. Tuning con validación cruzada
+set.seed(86936)
+db_fold_EN <- vfold_cv(train_split, v = 5)
+
+tune_res1_RF <- tune_grid(
+  workflow_1_RF,
+  resamples = db_fold_EN,     # folds de validación cruzada ya definidos
+  grid = mtry_grid,
+  metrics = metric_set(rmse)
+)
+
+tune_res2_RF <- tune_grid(
+  workflow_2_RF,
+  resamples = db_fold_EN,
+  grid = mtry_grid,
+  metrics = metric_set(rmse)
+)
+
+stopCluster(cl)
+registerDoSEQ()
+
+# 5. Elegir los mejores hiperparámetros 
+best_rf_1 <- select_best(tune_res1_RF, metric = "rmse")
+best_rf_2 <- select_best(tune_res2_RF, metric = "rmse")
+
+# 6. Finalizar workflows
+final_rf_1 <- finalize_workflow(workflow_1_RF, best_rf_1)
+final_rf_2 <- finalize_workflow(workflow_2_RF, best_rf_2)
+
+# 7. Ajustar sobre datos de entrenamiento
+fit_rf_1 <- fit(final_rf_1, data = train_split)
+fit_rf_2 <- fit(final_rf_2, data = train_split)
+
+# 8. Predecir sobre test_split y calcular RMSE
+pred_rf_1 <- predict(fit_rf_1, new_data = test_split)
+pred_rf_2 <- predict(fit_rf_2, new_data = test_split)
+
+# RMSE
+rmse_rf_1 <- rmse(bind_cols(test_split, pred_rf_1), truth = price, estimate = .pred)
+rmse_rf_2 <- rmse(bind_cols(test_split, pred_rf_2), truth = price, estimate = .pred)
+
+# MAE
+mae_rf_1 <- yardstick::mae(bind_cols(test_split, pred_rf_1), truth = price, estimate = .pred)
+mae_rf_2 <- yardstick::mae(bind_cols(test_split, pred_rf_2), truth = price, estimate = .pred)
+
+# Guardamos resultados
+resultados_rmse <- c(rmse_rf_1[[".estimate"]], rmse_rf_2[[".estimate"]])
+resultados_mae <- c(mae_rf_1[[".estimate"]], mae_rf_2[[".estimate"]])
+
+# Dataframe resumen
+resultados_finales_rf <- tibble(
+  modelo = c("Random Forest 1", "Random Forest 2"),
+  RMSE = resultados_rmse,
+  MAE = resultados_mae
+)
+
+resultados_finales_rf
+
+  # Entrenamiento Kaggle con todos los datos train y test ----
+# 9. Entrenamiento final para Kaggle
+final_rf_kaggle <- finalize_workflow(workflow_2_RF, best_rf_2)  # Asumiendo que rec_2 fue mejor
+fit_rf_kaggle <- fit(final_rf_kaggle, data = train)
+
+# Predicciones sobre test
+pred_rf_kaggle <- predict(fit_rf_kaggle, new_data = test)
+
+# Crear submission
+submission_rf <- test %>%
+  select(property_id) %>%
+  bind_cols(pred_rf_kaggle)
+
+names(submission_rf) <- c("property_id", "price")
+
+# Guardar archivo final-revisar la ruta (pendiente!)
+write.csv(submission_rf, "C:/Users/samel/OneDrive/Datos adjuntos/Universidad de los Andes/IV/Big Data - Machine Learning/GitHub/PS3_SM_MB_DL/stores/RF_V2.csv", row.names = FALSE)
+
+
+## SuperLearner ----
+
+# 2. Eliminar filas con NA en train (en X y en y)
+train <- train %>% drop_na()
+
+# No quitamos NAs en test porque normalmente el test no debería tener, 
+# pero si quieres hacerlo, puedes descomentar la siguiente línea:
+test <- test %>% drop_na()
+
+# 3. Separar variables predictoras y respuesta
+y_full <- train$price
+x_full <- train %>% select(-price)
+
+# 4. Convertir character a factor en ambos conjuntos
+x_full <- x_full %>% mutate(across(where(is.character), as.factor))
+test <- test %>% mutate(across(where(is.character), as.factor))
+
+# 5. Eliminar variables con un solo nivel en x_full
+cols_to_keep <- sapply(x_full, function(col) {
+  if (is.factor(col)) {
+    length(levels(col)) > 1
+  } else {
+    TRUE
+  }
+})
+x_full <- x_full[, cols_to_keep]
+
+# 6. Sincronizar niveles en test según los de x_full
+for (col_name in names(x_full)) {
+  if (is.factor(x_full[[col_name]]) && is.factor(test[[col_name]])) {
+    levels(test[[col_name]]) <- levels(x_full[[col_name]])
+  }
+}
+
+# 7. Entrenar SuperLearner
+set.seed(123)
+sl_fit_kaggle <- SuperLearner(
+  Y = y_full,
+  X = x_full,
+  family = gaussian(),
+  SL.library = c("SL.mean", "SL.glm", "SL.rpart"),
+  method = "method.NNLS"
+)
+
+# 8. Predecir en test usando solo las columnas que quedaron en x_full
+pred_kaggle <- predict(sl_fit_kaggle, newdata = test %>% select(names(x_full)))$pred
+
+# 9. Crear archivo submission
+submission_sl <- test %>%
+  select(property_id) %>%
+  mutate(price = pred_kaggle)
+
+# 10. Guardar CSV para Kaggle
+write_csv(submission_sl, "submission_superlearner.csv")
