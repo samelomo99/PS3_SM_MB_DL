@@ -594,7 +594,7 @@ ggplotly(p_avenida)
 
 
 
-#----- Crear variables a partir de texto: Train--------------------
+###----- Crear variables a partir de texto: Train--------------------
 
 nuevo_df_train <- select(train, property_id, description)
 
@@ -686,6 +686,14 @@ train <- train %>%
 ### Guardar la base de datos para usarla ya de manera clara
 
 write.csv(train, file = "/Users/miguelblanco/Library/CloudStorage/OneDrive-Personal/Materias Uniandes/2025 10/Big Data y Maching Learning para Economia Aplicada/Nueva carpeta/PS3_SM_MB_DL/Stores/trainfull.csv", row.names = FALSE)
+
+###Juntando con la base de datos que tiene los estratos 
+estratos_train <- read_csv("/Users/miguelblanco/Library/CloudStorage/OneDrive-Personal/Materias Uniandes/2025 10/Big Data y Maching Learning para Economia Aplicada/Nueva carpeta/PS3_SM_MB_DL/stores/resultado_superficies_train.csv")
+
+train_estratos <- left_join(train, estratos_train %>% select(property_id, estrato, barrio, surface_3), by = "property_id")
+skim(train_estratos)
+
+train <- train_estratos
 
 ## --- Ahora con las variables test --------------------------------------------------------------
 skim(test_basica)
@@ -971,6 +979,36 @@ nuevo_df_test <- nuevo_df_test %>%
 test <- test %>%
   left_join(nuevo_df_test, by = "property_id")
 
+###Juntando con la base de datos que tiene los estratos 
+estratos_test <- read_csv("/Users/miguelblanco/Library/CloudStorage/OneDrive-Personal/Materias Uniandes/2025 10/Big Data y Maching Learning para Economia Aplicada/Nueva carpeta/PS3_SM_MB_DL/stores/resultado_superficies_test.csv")
+
+test_estratos <- left_join(test, estratos_test %>% select(property_id, estrato, barrio, surface_3), by = "property_id")
+skim(test_estratos)
+
+test_estratos %>%
+  filter(is.na(estrato)) %>%
+  distinct(barrio) %>%
+  arrange(barrio)
+# Paso previo: renombrar columna si aún se llama ESTRATO
+test_estratos <- test_estratos %>%
+  rename(estrato = ESTRATO)  # Solo si venía en mayúsculas
+
+# Paso 1: Crear la tabla de estratos manuales
+estratos_manual <- tibble::tibble(
+  barrio = c("ANTIGUO COUNTRY", "EL BAGAZAL", "EL PARAISO", "EL REFUGIO I", "EL RETIRO", 
+             "EMAUS", "ESPARTILLAL", "INGEMAR ORIENTAL I", "INGEMAR ORIENTAL RURAL", "LA CABRERA",
+             "LAGO GAITAN", "LAS ACACIAS", "MARLY", "PARAMO I", "PARAMO I RURAL", 
+             "PORCIUNCULA", "SIBERIA", "SIBERIA  II", "SUCRE"),
+  estrato_manual = c(5, 2, 3, 5, 6, 5, 4, 4, 4, 6, 4, 3, 4, 3, 3, 5, 2, 2, 3)
+)
+
+# Paso 2: Unir y reemplazar solo donde esté NA
+test_estratos <- test_estratos %>%
+  left_join(estratos_manual, by = "barrio") %>%
+  mutate(estrato = ifelse(is.na(estrato), estrato_manual, estrato)) %>%
+  select(-estrato_manual)
+
+test <- test_estratos
 
 # Finalmente guardamos la base de datos en formato CSV para poderla usar al final cuando la necesitemos 
 

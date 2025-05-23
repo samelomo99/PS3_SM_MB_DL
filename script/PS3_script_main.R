@@ -592,9 +592,9 @@ ggplot()+
     
     ggplotly(p_avenida)
     
+
     
-    
-    #----- Crear variables a partir de texto: Train--------------------
+   ###----- Crear variables a partir de texto: Train--------------------
     
     nuevo_df_train <- select(train, property_id, description)
     
@@ -686,7 +686,9 @@ ggplot()+
 ### Guardar la base de datos para usarla ya de manera clara
     
     write.csv(train, file = "/Users/miguelblanco/Library/CloudStorage/OneDrive-Personal/Materias Uniandes/2025 10/Big Data y Maching Learning para Economia Aplicada/Nueva carpeta/PS3_SM_MB_DL/Stores/trainfull.csv", row.names = FALSE)
-    
+
+### Estrato 
+    ## En esta seccion 
 ## --- Ahora con las variables test --------------------------------------------------------------
 skim(test_basica)
 #y graficamente 
@@ -1257,7 +1259,7 @@ head(predicciones_LM)
 write.csv(predictSampleOLS, "/Users/miguelblanco/Library/CloudStorage/OneDrive-Personal/Materias Uniandes/2025 10/Big Data y Maching Learning para Economia Aplicada/Nueva carpeta/PS3_SM_MB_DL/stores/OLS.csv", row.names = FALSE)
 
 
-#----- Elastic net--------------------
+##----- Elastic net--------------------
 
 # Preprocesamiento & Feature Engineering
 
@@ -1394,7 +1396,7 @@ names(submission) <- c("property_id", "price")
 # Guardar archivo final-revisar la ruta (pendiente!)
 write.csv(submission, "D:/OneDrive - CGIAR/Pictures/Diplomado_BigData/Problem_set/ProblemSet3/Elastic_net.csv", row.names = FALSE)
 
-#----- Redes neuronales--------------------
+##----- Redes neuronales--------------------
 
 
 formula <- as.formula(
@@ -1531,7 +1533,7 @@ write.csv(resultado_NN_kaggle, "red_neuronal.csv", row.names = FALSE)
 
 ## ARBOLES ----------
 
-# Version 1
+#### Version 1 ----------------------
 
 complex_tree_1 <- rpart(price ~ lat + lon + bedrooms + year + month, 
                         data = train_split,
@@ -1579,6 +1581,100 @@ head(predictSample_CART)
 
 name <- "CART_alpha0.csv"
 write.csv(predictSample_CART, name, row.names = FALSE)
+
+#### Version 2 ------------------------------------
+
+
+# Especificación del modelo CART
+CART_spec <- decision_tree(cost_complexity = tune(), tree_depth = tune()) %>%
+  set_engine("rpart") %>%
+  set_mode("regression")
+
+# Grilla de hiperparámetros para CART
+grid_values_CART <- grid_regular(
+  cost_complexity(range = c(-4, -1)),
+  tree_depth(range = c(2, 20)),
+  levels = 5
+)
+
+# Primera receta
+rec_1_CART <- recipe(price ~ distancia_parque + distancia_CC + distancia_tm + 
+                       distancia_avenida + bedrooms + bathrooms + surface_total + property_type, data = train_split) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  step_interact(terms = ~ distancia_parque:matches("property_type") + distancia_tm:matches("property_type") + distancia_CC:matches("property_type") + distancia_avenida:matches("property_type"))
+
+
+# Segunda receta
+rec_2_CART <- recipe(price ~ distancia_parque + distancia_CC + distancia_tm + 
+                       distancia_avenida + rooms + bathrooms + surface_total + property_type, data = train_split) %>%
+  step_dummy(all_nominal_predictors()) 
+
+
+# Flujos de trabajo
+workflow_1_CART <- workflow() %>%
+  add_recipe(rec_1_CART) %>%
+  add_model(CART_spec)
+
+workflow_2_CART <- workflow() %>%
+  add_recipe(rec_2_CART) %>%
+  add_model(CART_spec)
+
+# Validación cruzada espacial
+train_sf_CART <- st_as_sf(train_split, coords = c("lon", "lat"), crs = 4326)
+
+set.seed(86936)
+block_folds_CART <- spatial_block_cv(train_sf_CART, v = 5)
+autoplot(block_folds_CART)
+walk(block_folds_CART$splits, function(x) print(autoplot(x)))
+
+# Entrenamiento y tuning
+set.seed(86936)
+tune_res1_CART <- tune_grid(
+  workflow_1_CART,
+  resamples = block_folds_CART,
+  grid = grid_values_CART,
+  metrics = metric_set(mae)
+)
+
+best_tune_res1_CART <- select_best(tune_res1_CART, metric = "mae")
+
+set.seed(86936)
+tune_res2_CART <- tune_grid(
+  workflow_2_CART,
+  resamples = block_folds_CART,
+  grid = grid_values_CART,
+  metrics = metric_set(mae)
+)
+
+best_tune_res2_CART <- select_best(tune_res2_CART, metric = "mae")
+
+# Finalización de workflows
+res1_final_CART <- finalize_workflow(workflow_1_CART, best_tune_res1_CART)
+res2_final_CART <- finalize_workflow(workflow_2_CART, best_tune_res2_CART)
+
+# Entrenamiento final
+EN_final1_fit_CART <- fit(res1_final_CART, data = train_split)
+EN_final2_fit_CART <- fit(res2_final_CART, data = train_split)
+
+# Evaluación
+mae(augment(EN_final1_fit_CART, new_data = test_split), truth = price, estimate = .pred)
+mae(augment(EN_final2_fit_CART, new_data = test_split), truth = price, estimate = .pred)
+
+# nMAE
+MAE_1_CART <- augment(EN_final1_fit_CART, new_data = test_split) %>%
+  mae(truth = price, estimate = .pred) %>%
+  select(.estimate) %>% pull()
+nMAE1_CART <- MAE_1_CART / mean(train_split$price) * 100 %>% round(2)
+
+MAE_2_CART <- augment(EN_final2_fit_CART, new_data = test_split) %>%
+  mae(truth = price, estimate = .pred) %>%
+  select(.estimate) %>% pull()
+nMAE2_CART <- MAE_2_CART / mean(train_split$price) * 100 %>% round(2)
+
+nMAE1_CART
+nMAE2_CART
+
+
 
 ## RANDOM FOREST 
 
