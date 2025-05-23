@@ -240,9 +240,8 @@ MAE_2_LM <- augment(EN_final2_fit_LM, new_data = test_split) %>%
 nMAE2_LM<- MAE_2_LM/mean(train_split$price)*100 %>% round(.,2)
 nMAE2_LM
 # Ahora ya con los datos reales para presentar 
-# ========================
-# Con todos los datos 
-# ========================
+  # Con todos los datos ---- 
+
 
 # Primera receta (recuerde poner los pasos en orden para el sistema le modele corectamente)
 rec_1_LM <- recipe(price ~ bedrooms + bathrooms + property_type + distancia_parque + distancia_CC + distancia_tm + distancia_avenida , data = train) %>%
@@ -508,7 +507,7 @@ names(submission) <- c("property_id", "price")
 # Guardar archivo final-revisar la ruta (pendiente!)
 write.csv(submission, "D:/OneDrive - CGIAR/Pictures/Diplomado_BigData/Problem_set/ProblemSet3/Elastic_net.csv", row.names = FALSE)
 
-##----- Redes neuronales--------------------
+##----- Redes neuronales----
 
 
 formula <- as.formula(
@@ -643,7 +642,7 @@ resultado_NN_kaggle <- tibble(
 # Exportar CSV
 write.csv(resultado_NN_kaggle, "red_neuronal.csv", row.names = FALSE)
 
-## ARBOLES ----------
+## ARBOLES ----
 
 # Especificación del modelo CART
 CART_spec <- decision_tree(cost_complexity = tune(), tree_depth = tune()) %>%
@@ -705,7 +704,7 @@ nMAE1_CART <- MAE_1_CART / mean(train_split$price) * 100 %>% round(2)
 
 nMAE1_CART
 
-#### Ahora con el modelo completo ---------------------
+  # Ahora con el modelo completo ----
 # Primera receta
 rec_1_CART <- recipe(price ~ distancia_parque + distancia_CC + distancia_tm + 
                        distancia_avenida + bedrooms + bathrooms + surface_3 + property_type + estrato, data = train) %>%
@@ -905,7 +904,7 @@ write.csv(predictSample_Xgboost, name, row.names = FALSE)
 
 
 ## RANDOM FOREST ----
-  # Con train_split y test_split ----
+# Con train_split y test_split ----
 # Recetas
 # Primera receta
 
@@ -1020,7 +1019,7 @@ resultados_finales_rf <- tibble(
 
 resultados_finales_rf
 
-  # Entrenamiento Kaggle con todos los datos train y test ----
+# Entrenamiento Kaggle con todos los datos train y test ----
 # 9. Entrenamiento final para Kaggle
 final_rf_kaggle <- finalize_workflow(workflow_2_RF, best_rf_2)  # Asumiendo que rec_2 fue mejor
 fit_rf_kaggle <- fit(final_rf_kaggle, data = train)
@@ -1037,3 +1036,61 @@ names(submission_rf) <- c("property_id", "price")
 
 # Guardar archivo final-revisar la ruta (pendiente!)
 write.csv(submission_rf, "C:/Users/samel/OneDrive/Datos adjuntos/Universidad de los Andes/IV/Big Data - Machine Learning/GitHub/PS3_SM_MB_DL/stores/RF_V2.csv", row.names = FALSE)
+
+
+## SuperLearner ----
+
+# Eliminar filas con NA en train (en X y en y)
+train <- train %>% drop_na()
+
+# No quitamos NAs en test porque normalmente el test no debería tener, 
+# pero si quieres hacerlo, puedes descomentar la siguiente línea:
+test <- test %>% drop_na()
+
+# 3. Separar variables predictoras y respuesta
+y_full <- train$price
+x_full <- train %>% select(-price, -property_id)
+
+# 4. Convertir character a factor en ambos conjuntos
+x_full <- x_full %>% mutate(across(where(is.character), as.factor))
+test <- test %>% mutate(across(where(is.character), as.factor))
+
+# 5. Eliminar variables con un solo nivel en x_full
+cols_to_keep <- sapply(x_full, function(col) {
+  if (is.factor(col)) {
+    length(levels(col)) > 1
+  } else {
+    TRUE
+  }
+})
+x_full <- x_full[, cols_to_keep]
+
+# 6. Sincronizar niveles en test según los de x_full
+for (col_name in names(x_full)) {
+  if (is.factor(x_full[[col_name]]) && is.factor(test[[col_name]])) {
+    levels(test[[col_name]]) <- levels(x_full[[col_name]])
+  }
+}
+
+# 7. Entrenar SuperLearner
+set.seed(123)
+sl_fit_kaggle <- SuperLearner(
+  Y = y_full,
+  X = x_full,
+  family = gaussian(),
+  SL.library = c("SL.mean", "SL.rpart", "SL.ranger"),
+  method = "method.NNLS"
+)
+
+
+# 8. Predecir en test usando solo las columnas que quedaron en x_full
+pred_kaggle <- predict(sl_fit_kaggle, newdata = test %>% select(names(x_full)))$pred
+
+# 9. Crear archivo submission
+submission_sl <- test %>%
+  select(property_id) %>%
+  mutate(price = as.numeric(pred_kaggle))
+
+
+# 10. Guardar CSV para Kaggle
+write_csv(submission_sl, "C:/Users/samel/OneDrive/Datos adjuntos/Universidad de los Andes/IV/Big Data - Machine Learning/GitHub/PS3_SM_MB_DL/stores/submission_superlearner.csv", row.names = FALSE)
