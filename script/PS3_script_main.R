@@ -848,45 +848,155 @@ MAE_1_GBM
 
 nMAE1_GBM <- MAE_1_GBM / mean(train_split$price) * 100 %>% round(2)
 
+### Modelo Gradient Boosting 2.0 ---------------
+# Especificación del modelo GBM
+GBM_spec <- boost_tree(
+  trees = tune(),
+  learn_rate = tune(),
+  tree_depth = tune()
+) %>%
+  set_engine("xgboost") %>%
+  set_mode("regression")
 
-### Modelo XGBoost ----
-
-p_load(xgboost)
-
-grid_xgboost <- expand.grid(nrounds = c(250, 500),
-                            max_depth = c(1, 2),
-                            eta = c(0.1, 0.01), 
-                            gamma = c(0, 1), 
-                            min_child_weight = c(10, 25),
-                            colsample_bytree = c(0.4, 0.7), 
-                            subsample = c(0.7))
-
-set.seed(91519)
-
-Xgboost_tree <- train(price ~ lat + lon + bedrooms + year + month,
-                      data = train_split, 
-                      method = "xgbTree", 
-                      trControl = ctrl,
-                      tuneGrid = grid_xgboost,
-                      metric = "RMSE",
-                      verbosity = 0
+# Grilla de hiperparámetros para GBM
+grid_values_GBM <- grid_regular(
+  trees(range = c(50, 200)),
+  learn_rate(range = c(0.01, 0.3)),
+  tree_depth(range = c(2, 10)),
+  levels = 3
 )
 
-predictSample_Xgboost <- test_split %>%
-  mutate(Price = predict(Xgboost_tree, newdata = test_split)) %>%
-  dplyr::select(property_id, price)
+# Primera receta
+rec_1_GBM <- recipe(price ~ distancia_parque + distancia_CC + distancia_tm + 
+                      distancia_avenida + bedrooms + bathrooms + surface_3 + property_type + estrato, data = train_split) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  step_interact(terms = ~ distancia_parque:matches("property_type") + distancia_tm:matches("property_type") + distancia_CC:matches("property_type") + distancia_avenida:matches("property_type") + estrato:matches("property_type"))
 
-head(predictSample_Xgboost)
+# Flujos de trabajo
+workflow_1_GBM <- workflow() %>%
+  add_recipe(rec_1_GBM) %>%
+  add_model(GBM_spec)
+
+# Validación cruzada espacial
+train_sf_GBM <- st_as_sf(train_split, coords = c("lon", "lat"), crs = 4326)
+
+set.seed(86936)
+block_folds_GBM <- spatial_block_cv(train_sf_GBM, v = 5)
+autoplot(block_folds_GBM)
+walk(block_folds_GBM$splits, function(x) print(autoplot(x)))
+
+# Entrenamiento y tuning
+set.seed(86936)
+tune_res1_GBM <- tune_grid(
+  workflow_1_GBM,
+  resamples = block_folds_GBM,
+  grid = grid_values_GBM,
+  metrics = metric_set(mae)
+)
+
+best_tune_res1_GBM <- select_best(tune_res1_GBM, metric = "mae")
+
+# Finalización de workflows
+res1_final_GBM <- finalize_workflow(workflow_1_GBM, best_tune_res1_GBM)
+
+# Entrenamiento final
+EN_final1_fit_GBM <- fit(res1_final_GBM, data = train_split)
+
+# Evaluación
+mae(augment(EN_final1_fit_GBM, new_data = test_split), truth = price, estimate = .pred)
+
+# nMAE
+MAE_1_GBM <- augment(EN_final1_fit_GBM, new_data = test_split) %>%
+  mae(truth = price, estimate = .pred) %>%
+  select(.estimate) %>% pull()
+nMAE1_GBM <- MAE_1_GBM / mean(train_split$price) * 100 %>% round(2)
+
+nMAE1_GBM
+
+# Y probando con el modelo final 
+
+# Especificación del modelo XGBoost
+XGboost_spec <- boost_tree(
+  trees = tune(),
+  learn_rate = tune(),
+  tree_depth = tune()
+) %>%
+  set_engine("xgboost") %>%
+  set_mode("regression")
+
+# Grilla de hiperparámetros para XGBoost
+grid_values_XGboost <- grid_regular(
+  trees(range = c(50, 200)),
+  learn_rate(range = c(0.01, 0.3)),
+  tree_depth(range = c(2, 10)),
+  levels = 3
+)
+
+# Primera receta
+rec_1_XGboost <- recipe(price ~ distancia_parque + distancia_CC + distancia_tm + 
+                          distancia_avenida + bedrooms + bathrooms + surface_3 + property_type + estrato, data = train) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  step_interact(terms = ~ distancia_parque:matches("property_type") + distancia_tm:matches("property_type") + distancia_CC:matches("property_type") + distancia_avenida:matches("property_type") + estrato:matches("property_type"))
+
+# Flujos de trabajo
+workflow_1_XGboost <- workflow() %>%
+  add_recipe(rec_1_XGboost) %>%
+  add_model(XGboost_spec)
+
+# Validación cruzada espacial
+train_sf_XGboost <- st_as_sf(train, coords = c("lon", "lat"), crs = 4326)
+
+set.seed(86936)
+block_folds_XGboost <- spatial_block_cv(train_sf_XGboost, v = 5)
+autoplot(block_folds_XGboost)
+walk(block_folds_XGboost$splits, function(x) print(autoplot(x)))
+
+# Entrenamiento y tuning
+set.seed(86936)
+tune_res1_XGboost <- tune_grid(
+  workflow_1_XGboost,
+  resamples = block_folds_XGboost,
+  grid = grid_values_XGboost,
+  metrics = metric_set(mae)
+)
+
+best_tune_res1_XGboost <- select_best(tune_res1_XGboost, metric = "mae")
+
+# Finalización de workflows
+res1_final_XGboost <- finalize_workflow(workflow_1_XGboost, best_tune_res1_XGboost)
+
+# Entrenamiento final
+EN_final1_fit_XGboost <- fit(res1_final_XGboost, data = train)
+
+# 1. Generar predicciones sobre test
+predicciones_XGboost <- test %>%
+  mutate(price = predict(EN_final1_fit_XGboost, new_data = test) %>% pull(.pred)) %>%
+  select(property_id, price)
+
+head(predicciones_XGboost)
+
+# 2. Extraer hiperparámetros seleccionados
+parametros <- best_tune_res1_XGboost
+
+# 3. Crear nombre del archivo
+nombre_archivo <- paste0(
+  "XGboost_trees_", parametros$trees,
+  "_learnrate_", parametros$learn_rate,
+  "_depth_", parametros$tree_depth,
+  ".csv"
+)
+
+# 4. Ruta donde guardar
+ruta_archivo <- file.path(
+  "/Users/miguelblanco/Library/CloudStorage/OneDrive-Personal/Materias Uniandes/2025 10/Big Data y Maching Learning para Economia Aplicada/Nueva carpeta/PS3_SM_MB_DL/stores",
+  nombre_archivo
+)
+
+# 5. Guardar CSV
+write_csv(predicciones_XGboost, file = ruta_archivo)
 
 
-# Formato específico Kaggle para XGBoost
-nrounds_str <- gsub("\\.", "_", as.character(round(Xgboost_tree$bestTune$nrounds, 4)))
-max_depth_str <- gsub("\\.", "_", as.character(Xgboost_tree$bestTune$max_depth))
-eta_str <- gsub("\\.", "_", as.character(Xgboost_tree$bestTune$eta))
-gamma_str <- gsub("\\.", "_", as.character(Xgboost_tree$bestTune$gamma))
-colsample_bytree_str <- gsub("\\.", "_", as.character(Xgboost_tree$bestTune$colsample_bytree))
-min_child_weight_str <- gsub("\\.", "_", as.character(Xgboost_tree$bestTune$min_child_weight))
-subsample_str <- gsub("\\.", "_", as.character(Xgboost_tree$bestTune$subsample))
+
 
 name <- paste0(
   "XTBoost_",
