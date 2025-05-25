@@ -868,7 +868,7 @@ grid_values_GBM <- grid_regular(
 
 # Primera receta
 rec_1_GBM <- recipe(price ~ distancia_parque + distancia_CC + distancia_tm + 
-                      distancia_avenida + bedrooms + bathrooms + surface_3 + property_type + estrato, data = train_split) %>%
+                      distancia_avenida + bedrooms + bathrooms + property_type + estrato + year + surface_3 + parquedero + deposito + ascensor, data = train_split) %>%
   step_dummy(all_nominal_predictors()) %>%
   step_interact(terms = ~ distancia_parque:matches("property_type") + distancia_tm:matches("property_type") + distancia_CC:matches("property_type") + distancia_avenida:matches("property_type") + estrato:matches("property_type"))
 
@@ -934,7 +934,7 @@ grid_values_XGboost <- grid_regular(
 
 # Primera receta
 rec_1_XGboost <- recipe(price ~ distancia_parque + distancia_CC + distancia_tm + 
-                          distancia_avenida + bedrooms + bathrooms + surface_3 + property_type + estrato, data = train) %>%
+                          distancia_avenida + bedrooms + bathrooms + property_type + estrato + year + surface_3 + parquedero + deposito + ascensor, data = train) %>%
   step_dummy(all_nominal_predictors()) %>%
   step_interact(terms = ~ distancia_parque:matches("property_type") + distancia_tm:matches("property_type") + distancia_CC:matches("property_type") + distancia_avenida:matches("property_type") + estrato:matches("property_type"))
 
