@@ -680,20 +680,66 @@ nuevo_df_train <- nuevo_df_train %>%
   select(property_id, description_limpia, lemmas, parquedero, deposito, ascensor)
 train <- train %>%
   left_join(nuevo_df_train, by = "property_id")
+### Eliminando los missing de las variables de estrato y surface_3
+
+# Lista de barrios con estrato faltante
+barrios_con_estrato_NA <- train %>%
+  filter(is.na(estrato)) %>%
+  distinct(barrio) %>%
+  arrange(barrio)
+
+# Mostrar la lista
+print(barrios_con_estrato_NA)
+
+estratos_manual <- tibble::tibble(
+  barrio = c("AURES II", "BARAJAS NORTE", "BOSQUE DE PINOS III", "CAMPO HERMOSO",
+             "CIUDAD BACHUE II", "CORREDOR FERREO DEL SUR", "COSTA AZUL", "EL PANTANO",
+             "EL PARAISO", "EL PARAISO BOSA", "EL PENON DEL CORTIJO", "EL RETIRO",
+             "EL ROCIO NORTE", "GARCES NAVAS SUR", "HOYA TEUSACA", "LA CORUNA",
+             "LA GAITANA", "LA GAITANA ORIENTAL", "LOMBARDIA", "MARLY", "PARAMO",
+             "PARQUE NACIONAL", "SABANA DE TIBABUYES", "SAN CARLOS DE SUBA",
+             "SAN JOSE V SECTOR", "SAN PEDRO DE LOS ROBLES", "SAN VICTORINO",
+             "SANTA RITA DE SUBA", "SENA", "TAIRONA", "TIBABUYES II", "VILLA SAGRARIO"),
+  estrato_manual = c(2, 2, 6, 2, 2, 2, 3, 2, 2, 2, 2, 6, 3, 4, 5, 5, 3, 3, 3, 4, 2,
+                     4, 2, 3, 2, 2, 3, 2, 2, 2, 2, 2)
+)
+
+train <- train %>%
+  left_join(estratos_manual, by = "barrio") %>%
+  mutate(estrato = ifelse(is.na(estrato), estrato_manual, estrato)) %>%
+  select(-estrato_manual)
+
+moda_estrato <- train %>%
+  filter(!is.na(estrato)) %>%
+  count(estrato) %>%
+  arrange(desc(n)) %>%
+  slice(1) %>%
+  pull(estrato)
+
+train <- train %>%
+  mutate(estrato = ifelse(is.na(estrato) & is.na(barrio), moda_estrato, estrato))
 
 
+# Calcular la media de surface_3 por tipo de propiedad (ignorando NAs)
+media_surface_3 <- train %>%
+  group_by(property_type) %>%
+  summarise(media_surface_3 = mean(surface_3, na.rm = TRUE))
+
+# Reemplazar los NAs en surface_3 usando la media correspondiente
+train <- train %>%
+  left_join(media_surface_3, by = "property_type") %>%
+  mutate(surface_3 = ifelse(is.na(surface_3), media_surface_3, surface_3)) %>%
+  select(-media_surface_3)
+
+#Revisando con Skim
+
+skim(train)
 
 ### Guardar la base de datos para usarla ya de manera clara
 
 write.csv(train, file = "/Users/miguelblanco/Library/CloudStorage/OneDrive-Personal/Materias Uniandes/2025 10/Big Data y Maching Learning para Economia Aplicada/Nueva carpeta/PS3_SM_MB_DL/Stores/trainfull.csv", row.names = FALSE)
 
 ###Juntando con la base de datos que tiene los estratos 
-estratos_train <- read_csv("/Users/miguelblanco/Library/CloudStorage/OneDrive-Personal/Materias Uniandes/2025 10/Big Data y Maching Learning para Economia Aplicada/Nueva carpeta/PS3_SM_MB_DL/stores/resultado_superficies_train.csv")
-
-train_estratos <- left_join(train, estratos_train %>% select(property_id, estrato, barrio, surface_3), by = "property_id")
-skim(train_estratos)
-
-train <- train_estratos
 
 ## --- Ahora con las variables test --------------------------------------------------------------
 skim(test_basica)
@@ -1009,6 +1055,18 @@ test_estratos <- test_estratos %>%
   select(-estrato_manual)
 
 test <- test_estratos
+
+### Rellenando las missings de surface_3
+# 1. Calculamos las medias de surface_3 por tipo de propiedad en train
+media_surface_3_train <- train %>%
+  group_by(property_type) %>%
+  summarise(media_surface_3 = mean(surface_3, na.rm = TRUE))
+
+# 2. Reemplazamos los NAs en test con la media correspondiente según property_type
+test <- test %>%
+  left_join(media_surface_3_train, by = "property_type") %>%
+  mutate(surface_3 = ifelse(is.na(surface_3), media_surface_3, surface_3)) %>%
+  select(-media_surface_3)
 
 # Finalmente guardamos la base de datos en formato CSV para poderla usar al final cuando la necesitemos 
 
