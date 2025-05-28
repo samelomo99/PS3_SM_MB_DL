@@ -179,6 +179,8 @@ ggplot(train, aes(x = distancia_parque)) +
   theme_minimal()
 ggsave("plot_distancia_parque.png", width = 6, height = 4)
 
+mean(train$distancia_parque)
+
 ###Distancggplot(train, aes(x = distancia_CC)) +
 ggplot(train, aes(x = distancia_CC)) +
   geom_histogram(binwidth = 50, fill = "skyblue", color = "white") +
@@ -186,12 +188,16 @@ ggplot(train, aes(x = distancia_CC)) +
   theme_minimal()
 ggsave("plot_distancia_CC.png", width = 6, height = 4)
 
+mean(train$distancia_CC)
+
 ### Distancia a TransMilenio -----------------
 ggplot(train, aes(x = distancia_tm)) +
   geom_histogram(binwidth = 50, fill = "lightcoral", color = "white") +
   labs(title = "Distancia a Estaciones de TransMilenio", x = "Distancia (metros)", y = "Frecuencia") +
   theme_minimal()
 ggsave("plot_distancia_tm.png", width = 6, height = 4)
+
+mean(train$distancia_tm)
 
 ### Distancia a avenidas -----------------------
 
@@ -201,6 +207,7 @@ ggplot(train, aes(x = distancia_avenida)) +
   theme_minimal()
 ggsave("plot_distancia_avenida.png", width = 6, height = 4)
 
+mean(train$distancia_avenida)
 
 ### Panel de las distancias -------------------
 
@@ -230,6 +237,87 @@ ggsave("panel_distancias.png", width = 10, height = 8)
 ### Panel adicional -------------
 # Panel 2 x 2 (uno de los espacios queda vacío)
 (g5 | g6) / (g7 | g8)
+
+## Base de datos Test ---------------------------------
+
+# Calcular proporciones
+estrato_data <- test %>%
+  count(estrato) %>%
+  mutate(prop = n / sum(n),
+         label = paste0(scales::percent(prop)))
+
+# Gráfico de pastel
+g5 <- ggplot(estrato_data, aes(x = "", y = prop, fill = factor(estrato))) +
+  geom_col(width = 1, color = "white") +
+  coord_polar("y") +
+  geom_text(aes(label = label), position = position_stack(vjust = 0.5), size = 3.5) +
+  labs(title = "Estratos", fill = "Estrato") +
+  theme_void()
+ggsave("plot_estrato_pie_test.png", width = 6, height = 6)
+
+# Tipo de propiedad
+tipo_data <- test %>%
+  count(property_type) %>%
+  mutate(prop = n / sum(n),
+         label = paste0(property_type, ": ", scales::percent(prop)))
+
+g6 <- ggplot(tipo_data, aes(x = "", y = prop, fill = property_type)) +
+  geom_col(width = 1, color = "white") +
+  coord_polar("y") +
+  geom_text(aes(label = label), position = position_stack(vjust = 0.5), size = 3.5) +
+  labs(title = "Tipo de Propiedad", fill = "Tipo de Propiedad") +
+  theme_void()
+ggsave("plot_property_type_pie_test.png", width = 6, height = 6)
+
+# Número de baños
+g7 <- ggplot(test, aes(x = bathrooms)) +
+  geom_histogram(binwidth = 1, fill = "forestgreen", color = "white") +
+  labs(title = "Número de Baños", x = "Número de Baños", y = "Frecuencia") +
+  theme_minimal()
+ggsave("plot_bathrooms_test.png", width = 6, height = 4)
+
+# Número de habitaciones
+g8 <- ggplot(test, aes(x = bedrooms)) +
+  geom_histogram(binwidth = 1, fill = "darkorange", color = "white") +
+  labs(title = "Número de Habitaciones", x = "Número de Habitaciones", y = "Frecuencia") +
+  theme_minimal()
+ggsave("plot_bedrooms_test.png", width = 6, height = 4)
+
+# Distancia a parques
+g1 <- ggplot(test, aes(x = distancia_parque)) +
+  geom_histogram(fill = "skyblue", bins = 30) +
+  labs(title = "Distancia a Parque", x = "Distancia (m)", y = "Frecuencia")
+
+mean(test$distancia_parque)
+
+# Distancia a centros comerciales
+g2 <- ggplot(test, aes(x = distancia_CC)) +
+  geom_histogram(fill = "salmon", bins = 30) +
+  labs(title = "Distancia a Centro Comercial", x = "Distancia (m)", y = "Frecuencia")
+
+mean(test$distancia_CC)
+
+# Distancia a TransMilenio
+g3 <- ggplot(test, aes(x = distancia_tm)) +
+  geom_histogram(fill = "lightgreen", bins = 30) +
+  labs(title = "Distancia a TransMilenio", x = "Distancia (m)", y = "Frecuencia")
+
+mean(test$distancia_tm)
+
+# Distancia a avenidas
+g4 <- ggplot(test, aes(x = distancia_avenida)) +
+  geom_histogram(fill = "plum", bins = 30) +
+  labs(title = "Distancia a Avenida", x = "Distancia (m)", y = "Frecuencia")
+
+mean(test$distancia_avenida)
+
+# Panel de distancias
+(g1 | g2) / (g3 | g4)
+ggsave("panel_distancias_test.png", width = 10, height = 8)
+
+# Panel adicional
+(g5 | g6) / (g7 | g8)
+ggsave("panel_categoricas_test.png", width = 10, height = 8)
 
 
 #----- MODELOS --------------------
