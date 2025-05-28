@@ -15,9 +15,8 @@ Contiene el documento final en formato PDF del Problem Set 3. En este archivo se
 
 ### 📜 `scripts`  
 Incluye los scripts en R empleados en el proceso de análisis, desde el preprocesamiento de datos hasta el entrenamiento de modelos y la evaluación de resultados:  
-1. **01_preprocesamiento.R**: Carga, limpieza e imputación de variables, enriquecimiento con información geoespacial y creación de nuevas variables derivadas de texto.  
-2. **02_modelos.R**: Implementación de distintos modelos de regresión y aprendizaje automático, incluyendo redes neuronales profundas (Keras), XGBoost, Random Forest y regresión lineal.  
-3. **03_metricas_visuales.R**: Visualización de resultados, evolución de la función de pérdida, comparación de MAE y generación de gráficos utilizados en el informe final.  
+1. **PS3_database_variables_creation.R**: Carga, limpieza e imputación de variables, enriquecimiento con información geoespacial y creación de nuevas variables derivadas de texto.  
+2. **PS3_script_main.R**: Implementación de distintos modelos de regresión y aprendizaje automático, incluyendo redes neuronales profundas (Keras), XGBoost, Random Forest y regresión lineal. 
 
 ### 📊 `stores`  
 Contiene las bases de datos finales utilizadas en el análisis:  
