@@ -1,0 +1,64 @@
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|p{10cm}|}
+\hline
+\textbf{Variable} & \textbf{Descripción} \\
+\hline
+property\_id & Corresponde al identificador individual de la propiedad. \\
+\hline
+city & Ciudad donde se ubica la propiedad, para el caso Bogotá. \\
+\hline
+price & Precio en el cual se publica la propiedad. \\
+\hline
+month & Mes de publicación. \\
+\hline
+year & Año de publicación. \\
+\hline
+surface\_total & Variable que corresponde al área total del inmueble. \\
+\hline
+surface\_covered & Variable que corresponde al área privada del inmueble. \\
+\hline
+rooms & Número de cuartos. \\
+\hline
+bedrooms & Número de habitaciones para dormir. \\
+\hline
+bathrooms & Número de baños. \\
+\hline
+property\_type & Tipo de propiedad: si es apartamento o casa. \\
+\hline
+operation\_type & Tipo de operación, que para el caso es venta. \\
+\hline
+lat & Latitud de ubicación del inmueble. \\
+\hline
+lon & Longitud de ubicación del inmueble. \\
+\hline
+title & Título de la publicación. \\
+\hline
+description & Descripción de la publicación. \\
+\hline
+precio\_por\_mt2 & Cálculo del precio por metro cuadrado, obtenido dividiendo el precio (\texttt{price}) por el área total (\texttt{surface\_total}). \\
+\hline
+distancia\_parque & Cálculo de la distancia (en metros) entre la propiedad y el parque más cercano, con base en datos de Datos Abiertos Bogotá. \\
+\hline
+distancia\_CC & Cálculo de la distancia (en metros) entre la propiedad y el centro comercial más cercano, según datos de la Secretaría de Planeación Distrital. \\
+\hline
+distancia\_tm & Distancia en metros entre la propiedad y la troncal de TransMilenio más cercana. \\
+\hline
+distancia\_avenida & Distancia en metros entre la propiedad y la avenida más cercana, usando datos de OpenMaps. \\
+\hline
+parqueadero & Variable dummy que indica si el inmueble  tiene parqueadero o no, extraída de la variable descripción. \\
+\hline
+deposito & Variable dummy que indica si el inmueble  tiene depósito o no, extraída de la variable descripción. \\
+\hline
+ascensor & Variable dummy que indica si el inmueble cuenta con ascensor, extraída de la variable descripción. \\
+\hline
+estrato & Estrato socioeconómico del inmueble, calculado con base en datos de Properati y la Secretaría de Planeación Distrital. \\
+\hline
+barrio & Barrio donde se encuentra el inmueble, a partir de los datos de la Secretaría de Planeación Distrital y las coordenadas disponibles de los inmuebles. \\
+\hline
+surface\_3 & Área del inmueble obtenida con base en su descripción textual. \\
+\hline
+\end{tabular}
+\caption{Descripción de variables utilizadas en el análisis de precio de propiedades en Chapinero}
+\label{tab:variables}
+\end{table}

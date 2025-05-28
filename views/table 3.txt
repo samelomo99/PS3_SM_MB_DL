@@ -1,0 +1,16 @@
+\begin{table}[H]
+\centering
+\caption{Comparación de modelos de red neuronal profunda para predicción de precios de vivienda}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{l l c c l l r r}
+\toprule
+\textbf{Modelo} & \textbf{Capas (Unidades)} & \textbf{LR} & \textbf{Épocas} & \textbf{Imputación} & \textbf{Transformación} & \textbf{MAE Privado} & \textbf{MAE Público} \\
+\midrule
+\makecell[l]{\textbf{Modelo 1} \\ \texttt{pred\_NN\_keras\_log.csv}} & 32-32-32-32 & 0.01 & 400 & No & \texttt{log(price)} & \textbf{277.389.181,40} & \textbf{279.322.882,56} \\
+\makecell[l]{\textbf{Modelo 2} \\ \texttt{nn\_keras\_log\_4layers500ep\_lr0001}} & 128-64-32-16 & 0.001 & 500 & No & \texttt{log(price)} & 292.915.811,16 & 296.535.594,94 \\
+\makecell[l]{\textbf{Modelo 3} \\ \texttt{nn\_keras\_4layers600ep\_lr001\_knnimpute}} & 64-64-32-16 & 0.01 & 600 & KNN (\texttt{surface\_4}) & \texttt{log(price)} & 302.302.521,52 & 303.539.480,43 \\
+\bottomrule
+\end{tabular}%
+}
+\label{tab:comparacion_nn}
+\end{table}

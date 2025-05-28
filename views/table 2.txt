@@ -1,0 +1,13 @@
+\begin{table}[H]
+\centering
+\caption{Comparación del MAE entre modelos con y sin transformación logarítmica}
+\begin{tabular}{l r}
+\toprule
+\textbf{Modelo} & \textbf{MAE} \\
+\midrule
+Precio original & 593.890.239 \\
+\texttt{log(price)} revertido & 139.699.303 \\
+\bottomrule
+\end{tabular}
+\label{tab:mae_log}
+\end{table}

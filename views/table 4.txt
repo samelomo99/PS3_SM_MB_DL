@@ -1,0 +1,16 @@
+\begin{table}[H]
+\centering
+\caption{Desempeño de modelos de predicción del precio de vivienda (MAE)}
+\begin{tabular}{l r}
+\toprule
+\textbf{Modelo} & \textbf{MAE} \\
+\midrule
+XGBoost Tree     & 281.290.366,7 \\
+SuperLearner     & 283.366.395,4 \\
+CART             & 292.248.031,6 \\
+Random Forest    & 312.588.111,9 \\
+Elastic Net      & 338.869.433,6 \\
+OLS              & 284.214.140,8 \\
+\bottomrule
+\end{tabular}
+\label{tab:modelos_mae}
