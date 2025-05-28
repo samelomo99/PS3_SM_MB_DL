@@ -239,7 +239,7 @@ ggplot()+
   scale_fill_brewer(palette = "Set1", name = "Estrato") +  # o usa otra como "Paired", "Set3", etc.
   theme_minimal() +
   labs(title = "Mapa por estrato", subtitle = "Estratos del 1 al 6") + 
-  geom_sf(data=sf_train %>% filter(property_type == c("Apartamento", "Casa")),aes(color = precio_por_mt2) ,shape=15, size=0.3) +
+  #geom_sf(data=sf_train %>% filter(property_type == c("Apartamento", "Casa")),aes(color = precio_por_mt2) ,shape=15, size=0.3) +
   theme_bw()
 
 # Creamos un mapa con las avenidas mas cercanas 
@@ -259,7 +259,7 @@ localidades <- st_read("https://datosabiertos.bogota.gov.co/dataset/856cb657-8ca
 localidades<-st_transform(localidades,4326)
 ggplot()+
   geom_sf(data=localidades, color = "red") + 
-  geom_sf(data=sf_train %>% filter(property_type == c("Apartamento", "Casa")),aes(color = precio_por_mt2) ,shape=15, size=0.3) +
+  #geom_sf(data=sf_train %>% filter(property_type == c("Apartamento", "Casa")),aes(color = precio_por_mt2) ,shape=15, size=0.3) +
   theme_bw()
 
 
@@ -270,7 +270,7 @@ parques <- st_read("https://datosabiertos.bogota.gov.co/dataset/1ca41514-3671-41
 parques <- st_transform(parques,4326)
 ggplot()+
   geom_sf(data = parques, color = "green") +
-  geom_sf(data=sf_train %>% filter(property_type == c("Apartamento", "Casa")),aes(color = precio_por_mt2) ,shape=15, size=0.3) +
+  #geom_sf(data=sf_train %>% filter(property_type == c("Apartamento", "Casa")),aes(color = precio_por_mt2) ,shape=15, size=0.3) +
   theme_bw()
 
 # Creamos mapa para Centros Comerciales (CC)
@@ -304,9 +304,10 @@ tm <- st_read("https://raw.githubusercontent.com/samelomo99/PS3_SM_MB_DL/refs/he
 
 tm <- st_transform(tm,4326)
 ggplot()+
-  geom_sf(data = tm, color = "yellow") +
-  geom_sf(data=sf_train %>% filter(property_type == c("Apartamento", "Casa")),aes(color = precio_por_mt2) ,shape=15, size=0.3) +
-  theme_bw()
+  geom_sf(data = tm, color = "red") +
+  #geom_sf(data=sf_train %>% filter(property_type == c("Apartamento", "Casa")),aes(color = precio_por_mt2) ,shape=15, size=0.3) +
+  theme_bw()+
+  labs(title = "Troncales de TransMilenio", subtitle = "Fuente: Datos Abiertos Transmilenio")
 
 ## Creando las variables adicionales ----------------------
 ### Distancia a parque mas cercano ------------------------
@@ -570,8 +571,8 @@ AV_lineas <- st_transform(AV_lineas, 4326)
 
 leaflet() %>%
   addTiles() %>%
-  addPolylines(data = AV_lineas, color = "red", weight = 2, opacity = 0.7) %>%
-  addCircles(data = sf_train, color = "blue", radius = 1, opacity = 0.5)
+  addPolylines(data = AV_lineas, color = "blue", weight = 2, opacity = 0.7)
+  #addCircles(data = sf_train, color = "blue", radius = 1, opacity = 0.5)
 
 
 # 5. Calcular distancia directa a los segmentos más cercanos
