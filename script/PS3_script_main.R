@@ -76,6 +76,7 @@ pacman::p_load(
 
 ## --- Creacion de las particiones de datos para probar -------- 
 #LLamamos la base desde GitHub, para no correr todo 
+
 train <- read.csv("https://raw.githubusercontent.com/samelomo99/PS3_SM_MB_DL/refs/heads/main/stores/trainfull.csv")
 test <- read.csv("https://raw.githubusercontent.com/samelomo99/PS3_SM_MB_DL/refs/heads/main/stores/testfull.csv")
 
@@ -110,7 +111,125 @@ index <- createDataPartition(train$price, p = 0.7, list = FALSE)
 train_split <- train[index, ]  #Con esta se hace la estimación
 test_split  <- train[-index, ] #Con esta se hace la prueba del MAE
 
+# ------------ ESTADISTICAS DESCRIPTIVAS----------------------
+## Base de datos train ----------------------------------
 
+### Estratos -----------------------------
+library(ggplot2)
+library(dplyr)
+
+# Calcular proporciones
+estrato_data <- train %>%
+  count(estrato) %>%
+  mutate(prop = n / sum(n),
+         label = paste0(scales::percent(prop)))
+
+print(estrato_data)
+
+# Gráfico de pastel
+g5 <- ggplot(estrato_data, aes(x = "", y = prop, fill = factor(estrato))) +
+  geom_col(width = 1, color = "white") +
+  coord_polar("y") +
+  geom_text(aes(label = label), position = position_stack(vjust = 0.5), size = 3.5) +
+  labs(title = "Estratos", fill = "Estrato") +
+  theme_void()
+ggsave("plot_estrato_pie.png", width = 6, height = 6)
+
+
+### Tipo de propiedad -------------------------
+# Calcular proporciones
+tipo_data <- train %>%
+  count(property_type) %>%
+  mutate(prop = n / sum(n),
+         label = paste0(property_type, ": ", scales::percent(prop)))
+
+# Gráfico de pastel
+g6 <- ggplot(tipo_data, aes(x = "", y = prop, fill = property_type)) +
+  geom_col(width = 1, color = "white") +
+  coord_polar("y") +
+  geom_text(aes(label = label), position = position_stack(vjust = 0.5), size = 3.5) +
+  labs(title = "Tipo de Propiedad", fill = "Tipo de Propiedad") +
+  theme_void()
+ggsave("plot_property_type_pie.png", width = 6, height = 6)
+
+
+### Numero de baños ----------------
+
+g7 <-ggplot(train, aes(x = bathrooms)) +
+  geom_histogram(binwidth = 1, fill = "forestgreen", color = "white") +
+  labs(title = "Número de Baños", x = "Número de Baños", y = "Frecuencia") +
+  theme_minimal()
+ggsave("plot_bathrooms.png", width = 6, height = 4)
+
+table(train$bathrooms)
+
+### Numero de habitaciones (Bedrooms) --------------
+
+g8 <-ggplot(train, aes(x = bedrooms)) +
+  geom_histogram(binwidth = 1, fill = "darkorange", color = "white") +
+  labs(title = "Número de Habitaciones", x = "Número de Habitaciones", y = "Frecuencia") +
+  theme_minimal()
+
+table(train$bedrooms)
+
+###Distancia a parques ------------------
+ggplot(train, aes(x = distancia_parque)) +
+  geom_histogram(binwidth = 50, fill = "darkseagreen", color = "white") +
+  labs(title = "Distancia a Parques", x = "Distancia (metros)", y = "Frecuencia") +
+  theme_minimal()
+ggsave("plot_distancia_parque.png", width = 6, height = 4)
+
+###Distancggplot(train, aes(x = distancia_CC)) +
+ggplot(train, aes(x = distancia_CC)) +
+  geom_histogram(binwidth = 50, fill = "skyblue", color = "white") +
+  labs(title = "Distancia a Centros Comerciales", x = "Distancia (metros)", y = "Frecuencia") +
+  theme_minimal()
+ggsave("plot_distancia_CC.png", width = 6, height = 4)
+
+### Distancia a TransMilenio -----------------
+ggplot(train, aes(x = distancia_tm)) +
+  geom_histogram(binwidth = 50, fill = "lightcoral", color = "white") +
+  labs(title = "Distancia a Estaciones de TransMilenio", x = "Distancia (metros)", y = "Frecuencia") +
+  theme_minimal()
+ggsave("plot_distancia_tm.png", width = 6, height = 4)
+
+### Distancia a avenidas -----------------------
+
+ggplot(train, aes(x = distancia_avenida)) +
+  geom_histogram(binwidth = 50, fill = "orchid", color = "white") +
+  labs(title = "Distancia a Avenidas", x = "Distancia (metros)", y = "Frecuencia") +
+  theme_minimal()
+ggsave("plot_distancia_avenida.png", width = 6, height = 4)
+
+
+### Panel de las distancias -------------------
+
+
+g1 <- ggplot(train, aes(x = distancia_parque)) +
+  geom_histogram(fill = "skyblue", bins = 30) +
+  labs(title = "Distancia a Parque", x = "Distancia (m)", y = "Frecuencia")
+
+g2 <- ggplot(train, aes(x = distancia_CC)) +
+  geom_histogram(fill = "salmon", bins = 30) +
+  labs(title = "Distancia a Centro Comercial", x = "Distancia (m)", y = "Frecuencia")
+
+g3 <- ggplot(train, aes(x = distancia_tm)) +
+  geom_histogram(fill = "lightgreen", bins = 30) +
+  labs(title = "Distancia a TransMilenio", x = "Distancia (m)", y = "Frecuencia")
+
+g4 <- ggplot(train, aes(x = distancia_avenida)) +
+  geom_histogram(fill = "plum", bins = 30) +
+  labs(title = "Distancia a Avenida", x = "Distancia (m)", y = "Frecuencia")
+
+# Panel de 2 x 2
+(g1 | g2) / (g3 | g4)
+
+# Guardar imagen
+ggsave("panel_distancias.png", width = 10, height = 8)
+
+### Panel adicional -------------
+# Panel 2 x 2 (uno de los espacios queda vacío)
+(g5 | g6) / (g7 | g8)
 
 
 #----- MODELOS --------------------
